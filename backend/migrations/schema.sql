@@ -1,4 +1,4 @@
-CREATE DATABASE tradeiq;
+CREATE DATABASE IF NOT EXISTS tradeiq;
 USE tradeiq;
 
 
@@ -26,6 +26,8 @@ CREATE TABLE users (
     team_name VARCHAR(100),
 
     role VARCHAR(20) DEFAULT 'student',
+
+    password_hash VARCHAR(64) NOT NULL DEFAULT '',
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

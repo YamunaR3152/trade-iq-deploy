@@ -1,0 +1,23 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "src/*"
+      ]
+    }
+  },
+  "include": [
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "src/native/**/*.ts",
+    "src/native/**/*.tsx"
+  ],
+  "exclude": [
+    "src/web-app",
+    "src/main.tsx",
+    "vite.config.ts"
+  ]
+}

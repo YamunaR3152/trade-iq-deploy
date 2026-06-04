@@ -1,0 +1,41 @@
+import { useEffect, useRef } from "react";
+import { Animated, Easing, Text, View } from "react-native";
+import { C, font, tickers } from "../constants";
+
+export function MarketTicker() {
+  const translateX = useRef(new Animated.Value(0)).current;
+  const row = [...tickers, ...tickers, ...tickers, ...tickers];
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.timing(translateX, {
+        toValue: -920,
+        duration: 22000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [translateX]);
+
+  return (
+    <View style={{ height: 38, overflow: "hidden", borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: "rgba(5,8,18,0.96)" }}>
+      <Animated.View style={{ flexDirection: "row", alignItems: "center", height: 38, transform: [{ translateX }] }}>
+        {row.map((ticker, index) => (
+          <View key={`${ticker.name}-${index}`} style={{ height: 38, flexDirection: "row", alignItems: "center", gap: 6, paddingRight: 28 }}>
+            <Text selectable style={{ color: C.text1, fontSize: 12, fontFamily: font.medium }}>
+              {ticker.name}
+            </Text>
+            <Text selectable style={{ color: C.text0, fontSize: 13, fontFamily: font.mono }}>
+              {ticker.price}
+            </Text>
+            <Text selectable style={{ color: ticker.up ? C.green : C.red, fontSize: 12, fontFamily: font.mono }}>
+              {ticker.change}
+            </Text>
+          </View>
+        ))}
+      </Animated.View>
+    </View>
+  );
+}
