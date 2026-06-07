@@ -147,6 +147,16 @@ Profile modal opened
 - Glossary numeric examples (educational text, not live data)
 - Form field placeholder text (`$10,000`, `$2,000` hints)
 
+## `LineChart` component
+
+`charts.tsx` currently imports `perfData` and `benchmarkData` directly from `constants.ts`. Both exports are being removed, so the component must be updated:
+
+- Add props: `perfData: number[]` and `benchmarkData: number[]`
+- Remove the static import from `constants.ts`
+- `dashboard.tsx` fetches benchmark data via `GET /market/benchmark?start=&end=` (last 7 weeks), normalises `Close` values to start from 10000, and passes as `benchmarkData` prop
+- For `perfData`: derive weekly portfolio values from `portfolio.getTrades(studentId)` — group trades by week, compute cumulative `amount_invested` per week starting from `total_capital`. Pass as `perfData` prop.
+- `LineChart` shows a placeholder (dashed flat line at 10000) while data is loading
+
 ## Files changed
 
 **Backend:**
@@ -156,7 +166,8 @@ Profile modal opened
 - `frontend/DRA App/src/native/api.ts` — add `market.getIndices()`
 - `frontend/DRA App/src/native/market-store.ts` — new file
 - `frontend/DRA App/src/native/constants.ts` — remove `tickers`, `perfData`, `benchmarkData`
+- `frontend/DRA App/src/native/components/charts.tsx` — `LineChart` accepts `perfData` and `benchmarkData` as props
 - `frontend/DRA App/src/native/components/market-ticker.tsx` — use store
-- `frontend/DRA App/src/native/pages/dashboard.tsx` — market tab uses store
+- `frontend/DRA App/src/native/pages/dashboard.tsx` — market tab uses store; fetches and passes chart data
 - `frontend/DRA App/src/native/pages/portfolio-builder.tsx` — capital from summary
 - `frontend/DRA App/src/native/pages/main-app.tsx` — score from analytics
