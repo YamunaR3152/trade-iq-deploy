@@ -165,6 +165,14 @@ export type StockSearchResult = {
   type: string | null;
 };
 
+export type MarketIndex = {
+  name: string;
+  ticker: string;
+  price: string;
+  change: string;
+  up: boolean;
+};
+
 export const market = {
   getPrice(ticker: string): Promise<MarketPrice> {
     return apiFetch<MarketPrice>(`/market/price/${ticker}`);
@@ -172,6 +180,16 @@ export const market = {
 
   search(query: string): Promise<{ results: StockSearchResult[] }> {
     return apiFetch(`/market/search?q=${encodeURIComponent(query)}`);
+  },
+
+  getIndices(): Promise<{ indices: MarketIndex[] }> {
+    return apiFetch<{ indices: MarketIndex[] }>("/market/indices");
+  },
+
+  getBenchmark(start: string, end: string): Promise<{ benchmark: { Date: string; Close: number }[] }> {
+    return apiFetch<{ benchmark: { Date: string; Close: number }[] }>(
+      `/market/benchmark?start=${start}&end=${end}`
+    );
   },
 };
 
