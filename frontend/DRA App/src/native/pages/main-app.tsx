@@ -1,10 +1,12 @@
 import { BlurView } from "expo-blur";
 import { Image } from "expo-image";
 import { BarChart3, Bell, BookOpen, BriefcaseBusiness, LayoutDashboard, LogOut, Trophy, UserRound } from "lucide-react-native";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { clearActiveUser } from "../auth-store";
+import { analytics } from "../api";
+import type { BackendWeeklyScore } from "../api";
 import { brandLogo, C, font } from "../constants";
 import type { IconType, MainTab, UserData } from "../types";
 import { MarketTicker } from "../components/market-ticker";
@@ -26,6 +28,7 @@ const navItems: { id: MainTab; label: string; Icon: IconType }[] = [
 export function MainApp({ userData, onLogout }: { userData: UserData | null; onLogout: () => void }) {
   const [activeTab, setActiveTab] = useState<MainTab>("dashboard");
   const [profileOpen, setProfileOpen] = useState(false);
+  const [portfolioScore, setPortfolioScore] = useState<number | null>(null);
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const isWide = width > 780;
@@ -33,6 +36,23 @@ export function MainApp({ userData, onLogout }: { userData: UserData | null; onL
   const studentId = userData?.studentId || "202600000000";
   const initials = useMemo(() => userName.split(" ").map((item) => item[0]).join("").slice(0, 2).toUpperCase(), [userName]);
   const bottomNavHeight = 92 + insets.bottom;
+
+  useEffect(() => {
+    if (!profileOpen || portfolioScore !== null) return;
+    analytics
+      .getScores(studentId)
+      .then((data) => {
+        if (data.scores.length === 0) {
+          setPortfolioScore(0);
+          return;
+        }
+        const latest = data.scores.reduce((max: BackendWeeklyScore, s: BackendWeeklyScore) =>
+          s.week_number > max.week_number ? s : max
+        );
+        setPortfolioScore(Math.round(latest.final_score));
+      })
+      .catch(() => setPortfolioScore(0));
+  }, [profileOpen, studentId, portfolioScore]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: C.bg0 }} edges={["top", "left", "right"]}>
@@ -108,7 +128,7 @@ export function MainApp({ userData, onLogout }: { userData: UserData | null; onL
                 </Text>
               </View>
             </View>
-            <Progress label="Portfolio score" value={78} color={C.cyan} />
+            <Progress label="Portfolio score" value={portfolioScore ?? 0} color={C.cyan} />
             <Progress label="Learning completion" value={67} color={C.purple} />
             <Text selectable style={{ color: C.text2, fontSize: 12, lineHeight: 18 }}>
               University: {userData?.university || "Pending"} | IB Sales & Trading Risk Challenge
