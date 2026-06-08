@@ -186,6 +186,7 @@ export function PortfolioBuilder({ userData }: { userData: UserData | null }) {
   const studentId = userData?.studentId || "202600000000";
   const { width } = useWindowDimensions();
   const isNarrow = width < 430;
+  const [capitalAmount, setCapitalAmount] = useState(10000);
   const [positions, setPositions] = useState<Position[]>([makeTrade(studentId, 0, capitalAmount)]);
   const [setup, setSetup] = useState<PortfolioSetup>({
     studentId,
@@ -194,7 +195,6 @@ export function PortfolioBuilder({ userData }: { userData: UserData | null }) {
     investmentHorizon: "1 Month",
     competitionRound: "June 2026",
   });
-  const [capitalAmount, setCapitalAmount] = useState(10000);
   const [activeGlossary, setActiveGlossary] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [draftStatus, setDraftStatus] = useState("");
