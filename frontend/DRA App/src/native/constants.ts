@@ -25,6 +25,8 @@ export const font = {
 
 export const heroVideo = require("../imports/Multi-Shot_Video_-_premium_learning_competition_for_students_to_understand_investing__portfolio_cons.mp4");
 export const brandLogo = require("../imports/brand-logo.jpeg");
+export const brandIcon = require("../imports/brand-icon.png");
+export const tradeIqLogo = require("../imports/TradeIQ.png");
 export const prizePoolImage = require("../imports/prize-pool.jpeg");
 
 export const backgrounds = ["None", "Basic", "Intermediate", "Advanced"];

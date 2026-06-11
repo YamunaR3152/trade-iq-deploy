@@ -9,7 +9,7 @@ import { clearActiveUser } from "../auth-store";
 import { clearMarketCache } from "../market-store";
 import { analytics } from "../api";
 import type { BackendWeeklyScore } from "../api";
-import { brandLogo, C, font } from "../constants";
+import { brandIcon, C, font, tradeIqLogo } from "../constants";
 import type { IconType, MainTab, UserData } from "../types";
 import { MarketTicker } from "../components/market-ticker";
 import { GlassCard, Progress } from "../components/ui";
@@ -66,15 +66,9 @@ export function MainApp({ userData, onLogout }: { userData: UserData | null; onL
       <MarketTicker />
       <View style={{ zIndex: 2, paddingHorizontal: 18, paddingVertical: 12, borderBottomColor: C.border, borderBottomWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "rgba(5,8,18,0.98)" }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
-          <Image source={brandLogo} style={{ width: 38, height: 38, borderRadius: 12 }} />
-          <View style={{ flex: 1 }}>
-            <Text selectable style={{ color: C.text0, fontFamily: font.medium, fontSize: 13 }}>
-              Digital Risk Academy
-            </Text>
-            <Text selectable style={{ color: C.text2, fontSize: 10, marginTop: 2 }}>
-              {studentId} | IB Sales & Trading Challenge
-            </Text>
-          </View>
+          <Image source={brandIcon} contentFit="cover" style={{ width: 34, height: 34, borderRadius: 8 }} />
+          <Image source={tradeIqLogo} contentFit="contain" style={{ width: 132, height: 36 }} />
+          
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
           <Bell size={20} color={C.text1} />

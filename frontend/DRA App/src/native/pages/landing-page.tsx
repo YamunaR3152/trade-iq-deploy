@@ -3,7 +3,7 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import { ChevronRight } from "lucide-react-native";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { brandLogo, C, font, heroVideo, prizePoolImage } from "../constants";
+import { brandLogo, C, font, heroVideo, prizePoolImage, tradeIqLogo } from "../constants";
 import { MarketTicker } from "../components/market-ticker";
 import { AppButton } from "../components/ui";
 
@@ -20,28 +20,29 @@ export function LandingPage({ onExplore }: { onExplore: () => void }) {
       <View style={{ position: "absolute", inset: 0, backgroundColor: "rgba(5,8,18,0.54)" }} />
       <MarketTicker />
       <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ flexGrow: 1, padding: 22, paddingBottom: 24 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", paddingTop: 56 }}>
-          <Image source={brandLogo} style={{ width: 54, height: 54, borderRadius: 14, borderWidth: 1, borderColor: C.border2 }} />
-          <View style={{ marginLeft: 12, flex: 1 }}>
-            <Text selectable style={{ color: C.text0, fontFamily: font.medium, fontSize: 18 }}>
+        <View style={{ alignItems: "center", paddingTop: 54, gap: 10 }}>
+          <Image source={brandLogo} style={{ width: 58, height: 58, borderRadius: 14, borderWidth: 1, borderColor: C.border2 }} />
+          <View style={{ alignItems: "center", gap: 2 }}>
+            <Text selectable style={{ color: C.text1, fontFamily: font.medium, fontSize: 16 }}>
               Digital Risk Academy
             </Text>
-            <Text selectable style={{ color: C.text1, fontFamily: font.regular, fontSize: 12, marginTop: 2 }}>
+            <Text selectable style={{ color: C.text2, fontFamily: font.regular, fontSize: 12 }}>
               presents
             </Text>
           </View>
         </View>
 
-        <View style={{ flex: 1, justifyContent: "center", gap: 16, paddingTop: 54, paddingBottom: 20 }}>
-          <View style={{ alignSelf: "flex-start", borderRadius: 999, paddingHorizontal: 13, paddingVertical: 8, backgroundColor: "rgba(30,230,163,0.11)", borderColor: "rgba(30,230,163,0.42)", borderWidth: 1 }}>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", gap: 14, paddingTop: 34, paddingBottom: 20 }}>
+          <Image source={tradeIqLogo} contentFit="contain" style={{ width: "100%", maxWidth: 520, aspectRatio: 3.6 }} />
+          <View style={{ alignSelf: "center", borderRadius: 999, paddingHorizontal: 13, paddingVertical: 8, backgroundColor: "rgba(30,230,163,0.11)", borderColor: "rgba(30,230,163,0.42)", borderWidth: 1 }}>
             <Text selectable style={{ color: C.green, fontFamily: font.medium, fontSize: 11 }}>
               Paper capital $10,000 | Educational simulation
             </Text>
           </View>
-          <Text selectable style={{ color: C.text0, fontFamily: font.medium, fontSize: 38, lineHeight: 43 }}>
+          <Text selectable style={{ color: C.text0, fontFamily: font.medium, fontSize: 24, lineHeight: 31, textAlign: "center", maxWidth: 760 }}>
             Investment Banking Sales & Trading Risk Challenge
           </Text>
-          <Text selectable style={{ color: C.text1, fontFamily: font.regular, fontSize: 15, lineHeight: 23 }}>
+          <Text selectable style={{ color: C.text1, fontFamily: font.regular, fontSize: 15, lineHeight: 23, textAlign: "center", maxWidth: 640 }}>
             Build a portfolio, defend your strategy, and compete in a premium fintech simulation designed for students.
           </Text>
 

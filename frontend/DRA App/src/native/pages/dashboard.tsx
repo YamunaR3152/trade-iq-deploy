@@ -1,9 +1,9 @@
-import { TrendingDown, TrendingUp } from "lucide-react-native";
+import { Award, TrendingDown, TrendingUp } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { C, font } from "../constants";
-import { market, portfolio } from "../api";
-import type { MarketIndex, PortfolioSummary } from "../api";
+import { analytics, market, portfolio } from "../api";
+import type { BackendWeeklyScore, MarketIndex, PortfolioSummary } from "../api";
 import { Legend, LineChart } from "../components/charts";
 import { GlassCard, Progress, SectionTitle } from "../components/ui";
 import { getMarketIndices } from "../market-store";
@@ -46,6 +46,23 @@ function StatCard({ label, value, sub, color = C.cyan }: { label: string; value:
   );
 }
 
+function ScoreMetricCard({ label, value, max, color = C.cyan }: { label: string; value: number; max: number; color?: string }) {
+  const pct = Math.max(0, Math.min(100, Math.round((value / max) * 100)));
+  return (
+    <View style={{ flex: 1, minWidth: 150, padding: 14, borderRadius: 8, backgroundColor: "rgba(5,8,18,0.72)", borderColor: C.border, borderWidth: 1, gap: 12 }}>
+      <Text selectable style={{ color: C.text2, fontFamily: font.medium, fontSize: 10, textTransform: "uppercase", textAlign: "center" }}>
+        {label}
+      </Text>
+      <Text selectable style={{ color: C.text0, fontFamily: font.mono, fontSize: 23, textAlign: "center" }}>
+        {value.toFixed(0)}<Text style={{ color: C.text2, fontSize: 13 }}>/{max}</Text>
+      </Text>
+      <View style={{ height: 4, borderRadius: 4, backgroundColor: C.bg3, overflow: "hidden" }}>
+        <View style={{ width: `${pct}%`, height: "100%", backgroundColor: color }} />
+      </View>
+    </View>
+  );
+}
+
 export function Dashboard({ userName, studentId }: { userName: string; studentId: string }) {
   const [tab, setTab] = useState<"overview" | "scoring" | "market" | "tasks">("overview");
   const tabs = ["overview", "scoring", "market", "tasks"] as const;
@@ -54,6 +71,8 @@ export function Dashboard({ userName, studentId }: { userName: string; studentId
   const [marketIndices, setMarketIndices] = useState<MarketIndex[]>([]);
   const [chartPerf, setChartPerf] = useState<number[]>([]);
   const [chartBench, setChartBench] = useState<number[]>([]);
+  const [latestScore, setLatestScore] = useState<BackendWeeklyScore | null>(null);
+  const [scoreLoading, setScoreLoading] = useState(true);
 
   useEffect(() => {
     if (!studentId) return;
@@ -84,6 +103,24 @@ export function Dashboard({ userName, studentId }: { userName: string; studentId
     if (!summary) return;
     setChartPerf(portfolioLine(summary.total_capital, summary.total_portfolio, CHART_POINTS));
   }, [summary]);
+
+  useEffect(() => {
+    if (!studentId) return;
+    setScoreLoading(true);
+    analytics
+      .computeScores(studentId)
+      .catch(() => null)
+      .then(() => analytics.getScores(studentId))
+      .then((data) => {
+        if (data.scores.length === 0) {
+          setLatestScore(null);
+          return;
+        }
+        setLatestScore(data.scores.reduce((max, score) => (score.week_number > max.week_number ? score : max)));
+      })
+      .catch(() => setLatestScore(null))
+      .finally(() => setScoreLoading(false));
+  }, [studentId]);
 
   const portfolioValue = summary
     ? `$${summary.total_portfolio.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -230,11 +267,35 @@ export function Dashboard({ userName, studentId }: { userName: string; studentId
       ) : null}
 
       {tab === "scoring" ? (
-        <GlassCard style={{ padding: 16, gap: 12 }} accent={C.purple}>
-          <SectionTitle title="Scoring" accent={C.purple} />
-          <Text selectable style={{ color: C.text2, fontSize: 12 }}>
-            Scores are computed weekly. Check the Scores tab for your detailed breakdown.
-          </Text>
+        <GlassCard style={{ padding: 16, gap: 18, backgroundColor: "rgba(10,16,32,0.96)" }} accent={C.cyan}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Award size={22} color={C.cyan} />
+                <Text selectable style={{ color: C.text0, fontFamily: font.medium, fontSize: 18 }}>
+                  Weekly Risk Performance Scorecard
+                </Text>
+              </View>
+              <Text selectable style={{ color: C.text2, fontSize: 13, marginTop: 5 }}>
+                Calculated based on desk discipline and regulatory-style risk guides.
+              </Text>
+            </View>
+            <View style={{ paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: "rgba(49,230,255,0.38)", backgroundColor: "rgba(49,230,255,0.08)", alignItems: "center" }}>
+              <Text selectable style={{ color: C.cyan, fontFamily: font.medium, fontSize: 9, textTransform: "uppercase" }}>
+                Total Score
+              </Text>
+              <Text selectable style={{ color: C.cyan, fontFamily: font.mono, fontSize: 30 }}>
+                {scoreLoading ? "..." : Math.round(latestScore?.final_score ?? 0)}<Text style={{ color: C.text2, fontSize: 13 }}>/100</Text>
+              </Text>
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14 }}>
+            <ScoreMetricCard label="Portfolio Perf" value={latestScore?.portfolio_score ?? 0} max={40} color={C.green} />
+            <ScoreMetricCard label="Risk Gov" value={latestScore?.risk_score ?? 0} max={20} color={C.cyan} />
+            <ScoreMetricCard label="Thesis Qual" value={latestScore?.thesis_score ?? 0} max={20} color={C.purple} />
+            <ScoreMetricCard label="Execution" value={latestScore?.execution_score ?? 0} max={10} color={C.gold} />
+            <ScoreMetricCard label="Strategy" value={latestScore?.strategy_score ?? 0} max={10} color={C.red} />
+          </View>
         </GlassCard>
       ) : null}
     </View>

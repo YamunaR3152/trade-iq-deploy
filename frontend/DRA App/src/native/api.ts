@@ -198,6 +198,7 @@ export type BackendLeaderboardEntry = {
   user_id: string;
   full_name: string | null;
   university: string | null;
+  team_name?: string | null;
   week_number: number | null;
   portfolio_score: number;
   risk_score: number;
@@ -206,6 +207,7 @@ export type BackendLeaderboardEntry = {
   strategy_score: number;
   final_score: number;
   rank_position: number | null;
+  portfolio_value?: number;
 };
 
 export type BackendWeeklyScore = {
@@ -219,13 +221,25 @@ export type BackendWeeklyScore = {
   rank_position: number | null;
 };
 
+export type BackendScoreMetrics = {
+  portfolio_value: number;
+  desk_return_expansion: number;
+  available_cash_depot: number;
+  holdings_value: number;
+  net_profit: number;
+};
+
 export const analytics = {
   getLeaderboard(week?: number): Promise<{ week: number | null; count: number; entries: BackendLeaderboardEntry[] }> {
     const qs = week != null ? `?week=${week}` : "";
     return apiFetch(`/analytics/leaderboard${qs}`);
   },
 
-  getScores(userId: string): Promise<{ user_id: string; scores: BackendWeeklyScore[] }> {
+  getScores(userId: string): Promise<{ user_id: string; scores: BackendWeeklyScore[]; latest_metrics: BackendScoreMetrics | null }> {
     return apiFetch(`/analytics/scores/${userId}`);
+  },
+
+  computeScores(userId: string): Promise<{ user_id: string; week_number: number; metrics: BackendScoreMetrics; weekly_score: BackendWeeklyScore | null }> {
+    return apiFetch(`/analytics/compute/${userId}`, { method: "POST" });
   },
 };

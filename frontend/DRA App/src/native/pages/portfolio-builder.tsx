@@ -1,15 +1,27 @@
-import { Check, Plus, X } from "lucide-react-native";
+import { Check, Trash2, X } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { C, font, glossary, glossaryTerms, sectorOptions } from "../constants";
 import { getPortfolioDraft, savePortfolioDraft } from "../portfolio-store";
-import { market, portfolio } from "../api";
+import { analytics, market, portfolio } from "../api";
 import type { StockSearchResult } from "../api";
 import type { Position, PortfolioSetup, UserData } from "../types";
 import { wordCount } from "../utils";
 import { AppButton, Field, GlassCard, Pill, SectionTitle } from "../components/ui";
 
 const tagOptions = ["Earnings Play", "Macro Tailwind", "Valuation Gap", "Momentum", "Risk Hedge", "(optional)"];
+const tableColumns = [
+  { key: "ticker", label: "Ticker", width: 92 },
+  { key: "name", label: "Stock", width: 190 },
+  { key: "sector", label: "Sector", width: 150 },
+  { key: "type", label: "Type", width: 78 },
+  { key: "allocation", label: "Alloc.", width: 84 },
+  { key: "amount", label: "Amount", width: 112 },
+  { key: "buy", label: "Buy", width: 92 },
+  { key: "price", label: "Current", width: 96 },
+  { key: "thesis", label: "Thesis", width: 180 },
+  { key: "action", label: "", width: 64 },
+] as const;
 
 function today() {
   return new Date().toLocaleDateString("en-GB");
@@ -52,6 +64,91 @@ function OptionRow({ label, options, value, onChange }: { label: string; options
   );
 }
 
+function DraftTradesTable({
+  positions,
+  selectedId,
+  onSelect,
+  onDelete,
+}: {
+  positions: Position[];
+  selectedId: string | null;
+  onSelect: (position: Position) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <View style={{ borderRadius: 12, borderWidth: 1, borderColor: C.border, overflow: "hidden", backgroundColor: "rgba(255,255,255,0.035)" }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View>
+          <View style={{ flexDirection: "row", backgroundColor: "rgba(49,230,255,0.10)", borderBottomColor: C.border, borderBottomWidth: 1 }}>
+            {tableColumns.map((column) => (
+              <View key={column.key} style={{ width: column.width, paddingHorizontal: 10, paddingVertical: 10 }}>
+                <Text selectable style={{ color: C.cyan, fontFamily: font.medium, fontSize: 10, textTransform: "uppercase" }}>
+                  {column.label}
+                </Text>
+              </View>
+            ))}
+          </View>
+          {positions.map((position, index) => {
+            const cells = [
+              position.stockTicker || "-",
+              position.stockName || "Select a stock",
+              position.sector || "-",
+              position.tradeType,
+              `${position.allocationPercent || 0}%`,
+              position.amountInvested || "-",
+              position.buyPrice || "-",
+              position.currentSellPrice || "-",
+              position.thesis ? `${position.thesis.slice(0, 52)}${position.thesis.length > 52 ? "..." : ""}` : "-",
+            ];
+            return (
+              <TouchableOpacity
+                key={position.id}
+                activeOpacity={0.78}
+                onPress={() => onSelect(position)}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: selectedId === position.id ? "rgba(49,230,255,0.12)" : index % 2 === 0 ? "rgba(255,255,255,0.025)" : "rgba(255,255,255,0.052)",
+                  borderBottomColor: selectedId === position.id ? "rgba(49,230,255,0.28)" : C.border,
+                  borderBottomWidth: index < positions.length - 1 ? 1 : 0,
+                }}
+              >
+                {cells.map((value, cellIndex) => (
+                  <View key={`${position.id}-${cellIndex}`} style={{ width: tableColumns[cellIndex].width, paddingHorizontal: 10, paddingVertical: 11 }}>
+                    <Text
+                      selectable
+                      numberOfLines={2}
+                      style={{
+                        color: cellIndex === 0 ? C.text0 : C.text1,
+                        fontFamily: cellIndex === 0 || cellIndex >= 4 ? font.mono : font.regular,
+                        fontSize: cellIndex === 8 ? 11 : 12,
+                        lineHeight: 16,
+                      }}
+                    >
+                      {value}
+                    </Text>
+                  </View>
+                ))}
+                <View style={{ width: tableColumns[9].width, paddingHorizontal: 10, paddingVertical: 7, alignItems: "center" }}>
+                  <TouchableOpacity
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      onDelete(position.id);
+                    }}
+                    style={{ width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center", borderColor: "rgba(255,95,126,0.34)", borderWidth: 1, backgroundColor: "rgba(255,95,126,0.10)" }}
+                  >
+                    <Trash2 size={15} color={C.red} />
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
 function StockSearchField({
   ticker,
   onSelect,
@@ -65,6 +162,10 @@ function StockSearchField({
   const [showResults, setShowResults] = useState(false);
   const [searchError, setSearchError] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setQuery(ticker);
+  }, [ticker]);
 
   const handleChange = (text: string) => {
     setQuery(text.toUpperCase());
@@ -187,7 +288,9 @@ export function PortfolioBuilder({ userData, onSubmitSuccess }: { userData: User
   const { width } = useWindowDimensions();
   const isNarrow = width < 430;
   const [capitalAmount, setCapitalAmount] = useState(10000);
-  const [positions, setPositions] = useState<Position[]>([makeTrade(studentId, 0, capitalAmount)]);
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [currentPosition, setCurrentPosition] = useState<Position>(() => makeTrade(studentId, 0, capitalAmount));
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [setup, setSetup] = useState<PortfolioSetup>({
     studentId,
     totalCapital: "$10,000",
@@ -206,7 +309,9 @@ export function PortfolioBuilder({ userData, onSubmitSuccess }: { userData: User
       if (!active) return;
       if (draft) {
         setSetup(draft.setup);
-        setPositions(draft.positions.length ? draft.positions : [makeTrade(studentId, 0, capitalAmount)]);
+        setPositions(draft.positions);
+        setCurrentPosition(makeTrade(studentId, draft.positions.length, capitalAmount));
+        setEditingId(null);
         setDraftStatus(`Draft restored from ${new Date(draft.updatedAt).toLocaleString()}.`);
       } else {
         setSetup({
@@ -216,7 +321,9 @@ export function PortfolioBuilder({ userData, onSubmitSuccess }: { userData: User
           investmentHorizon: "1 Month",
           competitionRound: "June 2026",
         });
-        setPositions([makeTrade(studentId, 0, capitalAmount)]);
+        setPositions([]);
+        setCurrentPosition(makeTrade(studentId, 0, capitalAmount));
+        setEditingId(null);
         setDraftStatus("");
       }
     });
@@ -231,9 +338,16 @@ export function PortfolioBuilder({ userData, onSubmitSuccess }: { userData: User
       .then((s) => {
         setCapitalAmount(s.total_capital);
         setSetup((prev) => ({ ...prev, totalCapital: `$${s.total_capital.toLocaleString()}` }));
+        setCurrentPosition((prev) => {
+          if (editingId) return prev;
+          return {
+            ...prev,
+            amountInvested: `$${Math.round((s.total_capital * Number(prev.allocationPercent || 0)) / 100).toLocaleString()}`,
+          };
+        });
       })
       .catch(() => {});
-  }, [userData?.studentId]);
+  }, [editingId, userData?.studentId]);
 
   const totalAllocation = positions.reduce((sum, position) => sum + (Number(position.allocationPercent) || 0), 0);
   const uniqueSectors = new Set(positions.map((position) => position.sector).filter(Boolean)).size;
@@ -241,26 +355,55 @@ export function PortfolioBuilder({ userData, onSubmitSuccess }: { userData: User
   const meetsMin = uniqueSectors >= 3 && positions.every((position) => position.allocationPercent <= 30);
   const colors = [C.purple, C.cyan, C.green, C.gold, C.red, C.text2];
 
-  const updatePosition = (id: string, field: keyof Position, value: string | number) => {
-    setPositions((prev) =>
-      prev.map((position) => {
-        if (position.id !== id) return position;
-        const next = { ...position, [field]: value };
-        if (field === "allocationPercent") next.amountInvested = `$${Math.round((capitalAmount * Number(value || 0)) / 100).toLocaleString()}`;
-        return next;
-      }),
-    );
+  const resetCurrentPosition = (nextIndex = positions.length) => {
+    setCurrentPosition(makeTrade(studentId, nextIndex, capitalAmount));
+    setEditingId(null);
   };
 
-  const addPosition = () =>
-    setPositions((prev) => [...prev, makeTrade(studentId, prev.length, capitalAmount)]);
-  const removePosition = (id: string) => setPositions((prev) => prev.filter((position) => position.id !== id));
+  const updateCurrentPosition = (field: keyof Position, value: string | number) => {
+    setCurrentPosition((position) => {
+      const next = { ...position, [field]: value };
+      if (field === "allocationPercent") next.amountInvested = `$${Math.round((capitalAmount * Number(value || 0)) / 100).toLocaleString()}`;
+      return next;
+    });
+  };
 
-  const saveDraft = async (message = "Draft saved. Your portfolio will be restored when you sign in again.") => {
-    const draft = await savePortfolioDraft(studentId, setup, positions);
+  const selectPositionForEditing = (position: Position) => {
+    setCurrentPosition(position);
+    setEditingId(position.id);
+    setDraftStatus(`${position.stockTicker || "Selected stock"} loaded for editing.`);
+  };
+
+  const removePosition = async (id: string) => {
+    const nextPositions = positions.filter((position) => position.id !== id);
+    setPositions(nextPositions);
+    if (editingId === id) resetCurrentPosition(nextPositions.length);
+    const draft = await savePortfolioDraft(studentId, setup, nextPositions);
     setSetup(draft.setup);
     setPositions(draft.positions);
-    setDraftStatus(message);
+    setDraftStatus("Stock removed from the draft table.");
+  };
+
+  const saveDraft = async () => {
+    const hasCurrentStock = Boolean(currentPosition.stockTicker.trim());
+    const normalizedCurrent: Position = {
+      ...currentPosition,
+      id: editingId ?? currentPosition.id,
+      studentId,
+      addedBy: currentPosition.addedBy || studentId,
+      tradeId: editingId ? currentPosition.tradeId : `TRD${String(positions.length + 1).padStart(6, "0")}`,
+    };
+    const nextPositions = hasCurrentStock
+      ? editingId
+        ? positions.map((position) => (position.id === editingId ? normalizedCurrent : position))
+        : [...positions, normalizedCurrent]
+      : positions;
+
+    const draft = await savePortfolioDraft(studentId, setup, nextPositions);
+    setSetup(draft.setup);
+    setPositions(draft.positions);
+    resetCurrentPosition(draft.positions.length);
+    setDraftStatus(hasCurrentStock ? "Stock saved to the draft table. The form is ready for the next stock." : "Draft saved.");
   };
 
   async function submitToBackend() {
@@ -288,8 +431,14 @@ export function PortfolioBuilder({ userData, onSubmitSuccess }: { userData: User
         });
         successCount++;
       }
-      setDraftStatus(`${successCount}/${positions.length} trade(s) submitted successfully.`);
-      setPositions([makeTrade(studentId, 0, capitalAmount)]);
+      try {
+        await analytics.computeScores(userData.studentId);
+        setDraftStatus(`${successCount}/${positions.length} trade(s) submitted successfully. Score and leaderboard updated.`);
+      } catch {
+        setDraftStatus(`${successCount}/${positions.length} trade(s) submitted successfully. Score will update after the next scoring run.`);
+      }
+      setPositions([]);
+      resetCurrentPosition(0);
       onSubmitSuccess?.();
     } catch (err) {
       setDraftStatus(
@@ -354,73 +503,84 @@ export function PortfolioBuilder({ userData, onSubmitSuccess }: { userData: User
 
       <GlassCard style={{ padding: 16, gap: 12, backgroundColor: "rgba(10,16,32,0.94)", borderColor: "rgba(49,230,255,0.24)" }} accent={C.cyan}>
         <SectionTitle
-          title="Trade Log"
+          title={editingId ? "Edit Stock" : "Select Stock"}
           accent={C.cyan}
-          right={<TouchableOpacity onPress={addPosition} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: "rgba(49,230,255,0.12)", borderColor: "rgba(49,230,255,0.28)", borderWidth: 1 }}>
-            <Plus size={14} color={C.cyan} />
-            <Text selectable style={{ color: C.cyan, fontFamily: font.medium, fontSize: 12 }}>Add</Text>
+          right={<TouchableOpacity onPress={() => resetCurrentPosition(positions.length)} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.06)", borderColor: C.border2, borderWidth: 1 }}>
+            <X size={14} color={C.text1} />
+            <Text selectable style={{ color: C.text1, fontFamily: font.medium, fontSize: 12 }}>Clear</Text>
           </TouchableOpacity>}
         />
-        {positions.map((position, index) => (
-          <View key={position.id} style={{ gap: 10, padding: 12, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.045)", borderColor: C.border, borderWidth: 1, borderTopWidth: 3, borderTopColor: colors[index % colors.length] }}>
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <View style={{ flex: 1 }}>
-                <Field label="Trade ID" value={position.tradeId} onChangeText={() => undefined} placeholder="TRD000001" />
-              </View>
-              <TouchableOpacity onPress={() => removePosition(position.id)} style={{ width: 42, alignSelf: "flex-end", height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", borderColor: C.border, borderWidth: 1 }}>
-                <X size={16} color={C.text2} />
-              </TouchableOpacity>
+        <Text selectable style={{ color: C.text2, fontSize: 12, lineHeight: 17 }}>
+          Fill one stock at a time. Save Draft records it in the table below, clears the form, and lets you add the next stock.
+        </Text>
+        <View style={{ gap: 10, padding: 12, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.045)", borderColor: C.border, borderWidth: 1, borderTopWidth: 3, borderTopColor: editingId ? C.gold : C.cyan }}>
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Field label="Trade ID" value={currentPosition.tradeId} onChangeText={() => undefined} placeholder="TRD000001" />
             </View>
-            <Field label="User ID" value={position.studentId} onChangeText={() => undefined} placeholder="202600000001" />
-            <Field label="Added By" value={position.addedBy} onChangeText={(value) => updatePosition(position.id, "addedBy", value.toUpperCase())} placeholder="202600000002" />
-            <Field label="Trade Date" value={position.tradeDate} onChangeText={(value) => updatePosition(position.id, "tradeDate", value)} placeholder="01/06/2026" />
-            <StockSearchField
-              ticker={position.stockTicker}
-              onSelect={(data) => {
-                setPositions((prev) =>
-                  prev.map((p) =>
-                    p.id === position.id
-                      ? {
-                          ...p,
-                          stockTicker: data.ticker,
-                          stockName: data.name,
-                          sector: data.sector,
-                          buyPrice: data.buyPrice,
-                          currentSellPrice: data.currentSellPrice,
-                        }
-                      : p,
-                  ),
-                );
-              }}
-            />
-            <Field label="Stock Name" value={position.stockName} onChangeText={(value) => updatePosition(position.id, "stockName", value)} placeholder="Apple Inc" />
-            <OptionRow label="Sector" options={sectorOptions} value={position.sector} onChange={(value) => updatePosition(position.id, "sector", value)} />
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <View style={{ flex: 1 }}>
-                <Field label="Allocation %" value={String(position.allocationPercent)} onChangeText={(value) => updatePosition(position.id, "allocationPercent", Number(value.replace(/\D/g, "").slice(0, 3)) || 0)} placeholder="20" keyboardType="numeric" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field label="Amount Invested" value={position.amountInvested} onChangeText={(value) => updatePosition(position.id, "amountInvested", value)} placeholder="$2,000" />
-              </View>
+            <View style={{ flex: 1 }}>
+              <Field label="Trade Date" value={currentPosition.tradeDate} onChangeText={(value) => updateCurrentPosition("tradeDate", value)} placeholder="01/06/2026" />
             </View>
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <View style={{ flex: 1 }}>
-                <Field label="Buy Price" value={position.buyPrice} onChangeText={(value) => updatePosition(position.id, "buyPrice", value)} placeholder="$189.50" keyboardType="decimal-pad" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field label="Current / Sell Price" value={position.currentSellPrice} onChangeText={(value) => updatePosition(position.id, "currentSellPrice", value)} placeholder="$201.00" keyboardType="decimal-pad" />
-              </View>
-            </View>
-            <OptionRow label="Trade Type" options={["Buy", "Sell"]} value={position.tradeType} onChange={(value) => updatePosition(position.id, "tradeType", value)} />
-            <OptionRow label="Tag 1" options={tagOptions} value={position.tag1} onChange={(value) => updatePosition(position.id, "tag1", value)} />
-            <OptionRow label="Tag 2" options={tagOptions} value={position.tag2} onChange={(value) => updatePosition(position.id, "tag2", value)} />
-            <OptionRow label="Tag 3" options={tagOptions} value={position.tag3} onChange={(value) => updatePosition(position.id, "tag3", value)} />
-            <Field label="Thesis" value={position.thesis} onChangeText={(value) => updatePosition(position.id, "thesis", value)} placeholder="Max 50 words" multiline />
-            <Text selectable style={{ color: wordCount(position.thesis) <= 50 ? C.text2 : C.red, fontSize: 10, alignSelf: "flex-end" }}>
-              {wordCount(position.thesis)}/50 words
-            </Text>
           </View>
-        ))}
+          <Field label="User ID" value={currentPosition.studentId} onChangeText={() => undefined} placeholder="202600000001" />
+          <Field label="Added By" value={currentPosition.addedBy} onChangeText={(value) => updateCurrentPosition("addedBy", value.toUpperCase())} placeholder="202600000002" />
+          <StockSearchField
+            ticker={currentPosition.stockTicker}
+            onSelect={(data) => {
+              setCurrentPosition((position) => ({
+                ...position,
+                stockTicker: data.ticker,
+                stockName: data.name,
+                sector: data.sector,
+                buyPrice: data.buyPrice,
+                currentSellPrice: data.currentSellPrice,
+              }));
+            }}
+          />
+          <Field label="Stock Name" value={currentPosition.stockName} onChangeText={(value) => updateCurrentPosition("stockName", value)} placeholder="Apple Inc" />
+          <OptionRow label="Sector" options={sectorOptions} value={currentPosition.sector} onChange={(value) => updateCurrentPosition("sector", value)} />
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Field label="Allocation %" value={String(currentPosition.allocationPercent)} onChangeText={(value) => updateCurrentPosition("allocationPercent", Number(value.replace(/\D/g, "").slice(0, 3)) || 0)} placeholder="20" keyboardType="numeric" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Field label="Amount Invested" value={currentPosition.amountInvested} onChangeText={(value) => updateCurrentPosition("amountInvested", value)} placeholder="$2,000" />
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Field label="Buy Price" value={currentPosition.buyPrice} onChangeText={(value) => updateCurrentPosition("buyPrice", value)} placeholder="$189.50" keyboardType="decimal-pad" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Field label="Current / Sell Price" value={currentPosition.currentSellPrice} onChangeText={(value) => updateCurrentPosition("currentSellPrice", value)} placeholder="$201.00" keyboardType="decimal-pad" />
+            </View>
+          </View>
+          <OptionRow label="Trade Type" options={["Buy", "Sell"]} value={currentPosition.tradeType} onChange={(value) => updateCurrentPosition("tradeType", value)} />
+          <OptionRow label="Tag 1" options={tagOptions} value={currentPosition.tag1} onChange={(value) => updateCurrentPosition("tag1", value)} />
+          <OptionRow label="Tag 2" options={tagOptions} value={currentPosition.tag2} onChange={(value) => updateCurrentPosition("tag2", value)} />
+          <OptionRow label="Tag 3" options={tagOptions} value={currentPosition.tag3} onChange={(value) => updateCurrentPosition("tag3", value)} />
+          <Field label="Thesis" value={currentPosition.thesis} onChangeText={(value) => updateCurrentPosition("thesis", value)} placeholder="Max 50 words" multiline />
+          <Text selectable style={{ color: wordCount(currentPosition.thesis) <= 50 ? C.text2 : C.red, fontSize: 10, alignSelf: "flex-end" }}>
+            {wordCount(currentPosition.thesis)}/50 words
+          </Text>
+        </View>
+
+        <View style={{ gap: 10 }}>
+          <SectionTitle
+            title="Saved Draft Stocks"
+            accent={C.green}
+            right={<Text selectable style={{ color: C.green, fontFamily: font.mono, fontSize: 12 }}>{positions.length} row{positions.length === 1 ? "" : "s"}</Text>}
+          />
+          {positions.length === 0 ? (
+            <View style={{ padding: 14, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: "rgba(255,255,255,0.035)" }}>
+              <Text selectable style={{ color: C.text2, fontSize: 12 }}>
+                No saved stocks yet. Fill the stock fields above and click Save Draft.
+              </Text>
+            </View>
+          ) : (
+            <DraftTradesTable positions={positions} selectedId={editingId} onSelect={selectPositionForEditing} onDelete={(id) => void removePosition(id)} />
+          )}
+        </View>
       </GlassCard>
 
       {activeGlossary && glossary[activeGlossary] ? (
@@ -451,13 +611,13 @@ export function PortfolioBuilder({ userData, onSubmitSuccess }: { userData: User
 
       <View style={{ flexDirection: isNarrow ? "column" : "row", gap: 10 }}>
         <View style={{ flex: 1 }}>
-          <AppButton label="Save Draft" onPress={() => void saveDraft()} variant="ghost" />
+          <AppButton label={editingId ? "Update Draft" : "Save Draft"} onPress={() => void saveDraft()} variant="ghost" />
         </View>
         <View style={{ flex: 1 }}>
           <AppButton label="Submit" onPress={() => {
             void submitToBackend();
             setSubmitted(true);
-          }} disabled={overLimit} />
+          }} disabled={overLimit || positions.length === 0} />
         </View>
       </View>
     </View>
