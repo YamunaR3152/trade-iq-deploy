@@ -1,4 +1,5 @@
 from flask import Flask
+import os
 from config.settings import get_config
 from app.extensions import db, jwt, cors
 
@@ -23,8 +24,9 @@ def create_app() -> Flask:
     app.register_blueprint(portfolio_bp)
     app.register_blueprint(analytics_bp)
 
-    with app.app_context():
-        db.create_all()
+    if os.getenv("AUTO_CREATE_TABLES", "false").lower() == "true":
+        with app.app_context():
+            db.create_all()
 
     @app.get("/health")
     def health():
