@@ -47,10 +47,7 @@ def register():
         date_of_birth      = data.get("date_of_birth"),
         phone_number       = data.get("phone_number"),
         university         = data.get("university"),
-        course             = data.get("course"),
         year_of_study      = data.get("year_of_study"),
-        participation_type = data.get("participation_type", "individual"),
-        team_name          = data.get("team_name"),
         role               = data.get("role", "student"),
     )
     db.session.add(user)

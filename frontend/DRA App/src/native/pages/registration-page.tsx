@@ -6,7 +6,7 @@ import { C, font } from "../constants";
 import { generateStudentId } from "../auth-store";
 import type { UserData } from "../types";
 import { formatDobInput, getAge, parseDob } from "../utils";
-import { AppButton, ErrorNotice, Field, GlassCard, HeaderMini, Pill, StepDots } from "../components/ui";
+import { AppButton, ErrorNotice, Field, GlassCard, HeaderMini, StepDots } from "../components/ui";
 
 export function RegistrationPage({ onSubmit, onSignIn }: { onSubmit: (data: UserData) => void | Promise<void>; onSignIn: () => void }) {
   const [form, setForm] = useState<UserData>({
@@ -17,10 +17,7 @@ export function RegistrationPage({ onSubmit, onSignIn }: { onSubmit: (data: User
     email: "",
     phoneNumber: "",
     university: "",
-    course: "",
     yearOfStudy: "",
-    participationType: "Individual",
-    teamName: "",
     password: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -45,8 +42,7 @@ export function RegistrationPage({ onSubmit, onSignIn }: { onSubmit: (data: User
     form.phoneNumber.trim() &&
     form.university.trim() &&
     form.password.trim() &&
-    form.studentId.trim() &&
-    (form.participationType === "Individual" || form.teamName.trim());
+    form.studentId.trim();
 
   const canContinue = Boolean(requiredComplete && !submitting);
 
@@ -67,7 +63,6 @@ export function RegistrationPage({ onSubmit, onSignIn }: { onSubmit: (data: User
     if (!emailValid(form.email)) nextErrors.email = "Enter a valid email address, for example name@university.edu.";
     if (!phoneValid(form.phoneNumber)) nextErrors.phoneNumber = "Enter a valid 10 digit phone number.";
     if (form.password.length < 6) nextErrors.password = "Password must be at least 6 characters.";
-    if (form.participationType === "Team" && !form.teamName.trim()) nextErrors.teamName = "Enter your team name.";
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -112,19 +107,7 @@ export function RegistrationPage({ onSubmit, onSignIn }: { onSubmit: (data: User
           />
           <Field label="Email" value={form.email} onChangeText={set("email")} placeholder="john@university.edu" keyboardType="email-address" error={errors.email} />
           <Field label="Phone Number" value={form.phoneNumber} onChangeText={(value) => set("phoneNumber")(value.replace(/\D/g, "").slice(0, 10))} placeholder="9876543210" keyboardType="phone-pad" error={errors.phoneNumber} />
-          <Field label="University" value={form.university} onChangeText={set("university")} placeholder="NYU" />
-          <Field label="Course / Program" value={form.course} onChangeText={set("course")} placeholder="MBA Finance" />
-          <View style={{ gap: 8 }}>
-            <Text selectable style={{ color: C.text2, fontFamily: font.medium, fontSize: 11, textTransform: "uppercase" }}>
-              Participation Type
-            </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-              {(["Individual", "Team"] as const).map((option) => (
-                <Pill key={option} label={option} active={form.participationType === option} onPress={() => setForm((prev) => ({ ...prev, participationType: option }))} />
-              ))}
-            </ScrollView>
-          </View>
-          <Field label="Team Name" value={form.teamName} onChangeText={set("teamName")} placeholder="Alpha Fund (blank if individual)" error={errors.teamName} />
+          <Field label="Organization" value={form.university} onChangeText={set("university")} placeholder="NYU" />
           <Field label="Password" value={form.password} onChangeText={set("password")} placeholder="Minimum 6 characters" secureTextEntry showPasswordToggle error={errors.password} />
           {submitError ? <ErrorNotice message={submitError} /> : null}
           <AppButton label={submitting ? "Creating Account..." : "Continue to Onboarding"} onPress={handleContinue} disabled={!canContinue} icon={<ChevronRight size={18} color={C.green} />} />

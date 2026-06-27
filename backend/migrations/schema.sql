@@ -17,13 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
 
     university VARCHAR(150),
 
-    course VARCHAR(100),
-
     year_of_study INT,
-
-    participation_type VARCHAR(20),
-
-    team_name VARCHAR(100),
 
     role VARCHAR(20) DEFAULT 'student',
 

@@ -54,10 +54,7 @@ function backendUserToUserData(u: BackendUser): UserData {
     fullName: u.full_name,
     email: u.email,
     university: u.university ?? "",
-    course: u.course ?? "",
     yearOfStudy: u.year_of_study != null ? String(u.year_of_study) : "",
-    participationType: u.participation_type?.toLowerCase() === "team" ? "Team" : "Individual",
-    teamName: u.team_name ?? "",
     age: "",
     dateOfBirth: "",
     phoneNumber: "",
@@ -86,10 +83,7 @@ export async function saveRegisteredUser(user: UserData): Promise<UserData> {
     date_of_birth: parseDobToISO(user.dateOfBirth),
     phone_number: user.phoneNumber || undefined,
     university: user.university || undefined,
-    course: user.course || undefined,
     year_of_study: user.yearOfStudy ? parseInt(user.yearOfStudy) : undefined,
-    participation_type: user.participationType.toLowerCase(),
-    team_name: user.teamName || undefined,
   });
 
   setToken(token);

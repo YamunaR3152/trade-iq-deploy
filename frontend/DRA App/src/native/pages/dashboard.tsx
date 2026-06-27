@@ -1,15 +1,31 @@
-import { Award, TrendingDown, TrendingUp } from "lucide-react-native";
+import { Trash2, TrendingDown, TrendingUp } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View, Alert } from "react-native";
+import Toast from "react-native-toast-message";
 import { C, font } from "../constants";
 import { analytics, market, portfolio } from "../api";
-import type { BackendWeeklyScore, MarketIndex, PortfolioSummary } from "../api";
+import type { BackendHolding, BackendTrade, BackendWeeklyScore, MarketIndex, PortfolioSummary } from "../api";
 import { Legend, LineChart } from "../components/charts";
 import { GlassCard, Progress, SectionTitle } from "../components/ui";
 import { getMarketIndices } from "../market-store";
 
 const CHART_POINTS = 7;
 const INDIAN_TICKERS = ["^NSEI", "^BSESN", "^CNXIT", "^CNXPHARMA"];
+const TRENDING_TICKERS = ["AAPL", "MSFT", "NVDA", "AMZN", "TSLA"];
+
+type DashboardTab = "portfolio" | "overview" | "allocation" | "market";
+type ActiveHolding = {
+  id: string;
+  ticker: string;
+  name: string;
+  sector: string;
+  buyPrice: number;
+  currentPrice: number;
+  investment: number;
+  quantity: number;
+  allocationPercent: number;
+  pnl: number;
+};
 
 function sampleAndNormalize(records: { Close: number }[], points: number): number[] {
   if (records.length === 0) return [];
@@ -28,60 +44,123 @@ function portfolioLine(startCapital: number, currentValue: number, points: numbe
   return Array.from({ length: points }, (_, i) => Math.round(startCapital + step * i));
 }
 
+function formatMoney(value: number) {
+  return `$${Number(value || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function holdingToActiveHolding(holding: BackendHolding, totalCapital: number): ActiveHolding {
+  const quantity = Number(holding.quantity || 0);
+  const buyPrice = Number(holding.avg_buy_price || 0);
+  const currentPrice = Number(holding.current_price || buyPrice || 0);
+  const investment = buyPrice * quantity;
+  return {
+    id: `holding-${holding.holding_id}`,
+    ticker: holding.stock_ticker,
+    name: holding.stock_name || holding.stock_ticker,
+    sector: holding.sector || "Unclassified",
+    buyPrice,
+    currentPrice,
+    investment,
+    quantity,
+    allocationPercent: Number(holding.allocation_percent || 0) || (totalCapital > 0 ? (investment / totalCapital) * 100 : 0),
+    pnl: Number(holding.profit_loss || 0),
+  };
+}
+
 function isoDate(d: Date): string {
   return d.toISOString().split("T")[0];
 }
 
-function StatCard({ label, value, sub, color = C.cyan }: { label: string; value: string; sub: string; color?: string }) {
-  return (
-    <GlassCard style={{ flex: 1, minWidth: 150, padding: 14 }} accent={color}>
-      <SectionTitle title={label} accent={color} />
-      <Text selectable style={{ color: C.text0, fontFamily: font.mono, fontSize: 24, marginTop: 5 }}>
-        {value}
-      </Text>
-      <Text selectable style={{ color, fontFamily: font.regular, fontSize: 11, marginTop: 4 }}>
-        {sub}
-      </Text>
-    </GlassCard>
-  );
-}
-
-function ScoreMetricCard({ label, value, max, color = C.cyan }: { label: string; value: number; max: number; color?: string }) {
-  const pct = Math.max(0, Math.min(100, Math.round((value / max) * 100)));
-  return (
-    <View style={{ flex: 1, minWidth: 150, padding: 14, borderRadius: 8, backgroundColor: "rgba(5,8,18,0.72)", borderColor: C.border, borderWidth: 1, gap: 12 }}>
-      <Text selectable style={{ color: C.text2, fontFamily: font.medium, fontSize: 10, textTransform: "uppercase", textAlign: "center" }}>
-        {label}
-      </Text>
-      <Text selectable style={{ color: C.text0, fontFamily: font.mono, fontSize: 23, textAlign: "center" }}>
-        {value.toFixed(0)}<Text style={{ color: C.text2, fontSize: 13 }}>/{max}</Text>
-      </Text>
-      <View style={{ height: 4, borderRadius: 4, backgroundColor: C.bg3, overflow: "hidden" }}>
-        <View style={{ width: `${pct}%`, height: "100%", backgroundColor: color }} />
-      </View>
-    </View>
-  );
-}
-
 export function Dashboard({ userName, studentId }: { userName: string; studentId: string }) {
-  const [tab, setTab] = useState<"overview" | "scoring" | "market" | "tasks">("overview");
-  const tabs = ["overview", "scoring", "market", "tasks"] as const;
+  const [tab, setTab] = useState<DashboardTab>("portfolio");
+  const tabs: { id: DashboardTab; label: string }[] = [
+    { id: "portfolio", label: "Portfolio" },
+    { id: "overview", label: "Overview" },
+    { id: "allocation", label: "Allocation" },
+    { id: "market", label: "Market" },
+  ];
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [marketIndices, setMarketIndices] = useState<MarketIndex[]>([]);
+  const [activeHoldings, setActiveHoldings] = useState<ActiveHolding[]>([]);
+  const [holdingsLoading, setHoldingsLoading] = useState(true);
   const [chartPerf, setChartPerf] = useState<number[]>([]);
   const [chartBench, setChartBench] = useState<number[]>([]);
   const [latestScore, setLatestScore] = useState<BackendWeeklyScore | null>(null);
   const [scoreLoading, setScoreLoading] = useState(true);
+  const [deletingTicker, setDeletingTicker] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState("");
+
+  const refreshSummary = async () => {
+    if (!studentId) return;
+    setLoading(true);
+    try {
+      const data = await portfolio.getSummary(studentId);
+      setSummary(data);
+    } catch {
+      setSummary(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshHoldings = async () => {
+    if (!studentId) return;
+    setHoldingsLoading(true);
+    try {
+      const [response, tradesResponse] = await Promise.all([
+        portfolio.getHoldings(studentId),
+        portfolio.getTrades(studentId).catch(() => ({ trades: [] as BackendTrade[] })),
+      ]);
+      const totalCapital = summary?.total_capital ?? 10000;
+      const latestTradeByTicker = new Map<string, BackendTrade>();
+
+      tradesResponse.trades
+        .slice()
+        .reverse()
+        .forEach((trade) => {
+          const ticker = trade.stock_ticker?.toUpperCase();
+          if (!ticker) return;
+          latestTradeByTicker.set(ticker, trade);
+        });
+
+      setActiveHoldings(response.holdings.map((holding) => {
+        const ticker = holding.stock_ticker?.toUpperCase();
+        const latestTrade = latestTradeByTicker.get(ticker);
+        return holdingToActiveHolding({
+          ...holding,
+          sector: holding.sector ?? latestTrade?.sector,
+          allocation_percent: holding.allocation_percent ?? latestTrade?.allocation_percent,
+        }, totalCapital);
+      }));
+    } catch {
+      setActiveHoldings([]);
+    } finally {
+      setHoldingsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!studentId) return;
-    portfolio
-      .getSummary(studentId)
-      .then(setSummary)
-      .catch(() => null)
-      .finally(() => setLoading(false));
+    void refreshSummary();
   }, [studentId]);
+
+  useEffect(() => {
+    if (!studentId) return;
+    let active = true;
+
+    async function loadHoldings() {
+      if (!active) return;
+      await refreshHoldings();
+    }
+
+    void loadHoldings();
+    const timer = setInterval(() => void loadHoldings(), 60000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [studentId, summary?.total_capital]);
 
   useEffect(() => {
     getMarketIndices()
@@ -130,6 +209,41 @@ export function Dashboard({ userName, studentId }: { userName: string; studentId
     : "—";
   const pnlLabel = summary ? `${summary.total_pnl >= 0 ? "+" : ""}$${summary.total_pnl.toFixed(2)} P&L` : "Loading...";
   const cashLabel = summary ? `$${summary.cash_balance.toFixed(2)} cash` : "—";
+  const returnColor = summary && summary.total_return_pct < 0 ? C.red : C.green;
+
+  const handleDeleteHolding = async (holding: ActiveHolding) => {
+    setDeletingTicker(holding.ticker);
+    setDeleteError("");
+    try {
+      try {
+        await portfolio.deleteHolding(holding.ticker);
+      } catch {
+        await portfolio.executeTrade({
+          stock_ticker: holding.ticker,
+          stock_name: holding.name,
+          sector: holding.sector,
+          trade_type: "SELL",
+          quantity: Math.max(1, Math.floor(holding.quantity)),
+          current_sell_price: holding.currentPrice,
+          amount_invested: holding.currentPrice * holding.quantity,
+        });
+      }
+      setActiveHoldings((items) => items.filter((item) => item.ticker !== holding.ticker));
+      await refreshSummary();
+      await refreshHoldings();
+      Toast.show({
+        type: "success",
+        text1: "Stock Deleted",
+        text2: `${holding.name} (${holding.ticker}) deleted successfully.`,
+      });
+      analytics.computeScores(studentId).catch(() => null);
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : `Could not delete ${holding.ticker}.`);
+      await refreshHoldings();
+    } finally {
+      setDeletingTicker(null);
+    }
+  };
 
   return (
     <View style={{ gap: 16 }}>
@@ -137,31 +251,16 @@ export function Dashboard({ userName, studentId }: { userName: string; studentId
         <Text selectable style={{ color: C.text0, fontFamily: font.heading, fontSize: 29, textTransform: "uppercase" }}>
           Welcome, {userName.split(" ")[0] || "Analyst"}
         </Text>
-        <Text selectable style={{ color: C.text2, fontFamily: font.regular, fontSize: 13, marginTop: 4 }}>
-          {loading
-            ? "Loading portfolio..."
-            : `Portfolio ${returnPct} vs $${summary?.total_capital.toFixed(0)} base.`}
-        </Text>
+        <View style={{ height: 1, marginTop: 14, backgroundColor: C.border }} />
       </View>
-
-      {loading ? (
-        <ActivityIndicator color={C.cyan} />
-      ) : (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-          <StatCard label="Portfolio Value" value={portfolioValue} sub={pnlLabel} color={C.green} />
-          <StatCard label="Available Cash" value={cashLabel} sub="ready to deploy" color={C.gold} />
-          <StatCard label="Portfolio Return" value={returnPct} sub={`vs $${summary?.total_capital.toFixed(0)} base`} color={C.cyan} />
-          <StatCard label="Weekly Performance" value={scoreLoading ? "..." : `${Math.round(latestScore?.final_score ?? 0)}/100`} sub="scorecard" color={C.purple} />
-        </View>
-      )}
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
         {tabs.map((item) => {
-          const active = tab === item;
+          const active = tab === item.id;
           return (
             <TouchableOpacity
-              key={item}
-              onPress={() => setTab(item)}
+              key={item.id}
+              onPress={() => setTab(item.id)}
               style={{
                 paddingHorizontal: 14,
                 paddingVertical: 10,
@@ -171,13 +270,82 @@ export function Dashboard({ userName, studentId }: { userName: string; studentId
                 borderWidth: 1,
               }}
             >
-              <Text selectable style={{ color: active ? C.cyan : C.text2, fontFamily: font.medium, fontSize: 12, textTransform: "capitalize" }}>
-                {item}
+              <Text selectable style={{ color: active ? C.cyan : C.text2, fontFamily: font.medium, fontSize: 12 }}>
+                {item.label}
               </Text>
             </TouchableOpacity>
           );
         })}
       </ScrollView>
+
+      {tab === "portfolio" ? (
+        <GlassCard style={{ padding: 16, gap: 14, backgroundColor: "rgba(10,16,32,0.96)" }} accent={C.cyan}>
+          <SectionTitle
+            title={`Active Holdings (${activeHoldings.length})`}
+            accent={C.cyan}
+            right={<Text selectable style={{ color: C.text2, fontFamily: font.mono, fontSize: 11 }}>Live prices refresh every minute</Text>}
+          />
+          {deleteError ? (
+            <View style={{ padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,95,126,0.38)", backgroundColor: "rgba(255,95,126,0.10)" }}>
+              <Text selectable style={{ color: C.red, fontSize: 12, lineHeight: 17 }}>
+                {deleteError}
+              </Text>
+            </View>
+          ) : null}
+          {holdingsLoading && activeHoldings.length === 0 ? (
+            <ActivityIndicator color={C.cyan} />
+          ) : activeHoldings.length === 0 ? (
+            <View style={{ padding: 14, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: "rgba(255,255,255,0.035)" }}>
+              <Text selectable style={{ color: C.text2, fontSize: 12 }}>
+                No active stocks yet. Submit stocks from Portfolio and they will appear here.
+              </Text>
+            </View>
+          ) : (
+            activeHoldings.map((holding) => {
+              const pnlPct = holding.investment > 0 ? (holding.pnl / holding.investment) * 100 : 0;
+              const pnlColor = holding.pnl >= 0 ? C.green : C.red;
+              return (
+                <View key={holding.id} style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 14, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: C.border, backgroundColor: "rgba(255,255,255,0.035)" }}>
+                  <View style={{ width: 54, height: 44, borderRadius: 10, borderWidth: 1, borderColor: `${C.cyan}66`, backgroundColor: "rgba(49,230,255,0.10)", alignItems: "center", justifyContent: "center" }}>
+                    <Text selectable numberOfLines={1} style={{ color: C.cyan, fontFamily: font.mono, fontSize: 12 }}>{holding.ticker}</Text>
+                  </View>
+                  <View style={{ flex: 1.4, minWidth: 170 }}>
+                    <Text selectable numberOfLines={1} style={{ color: C.text0, fontFamily: font.medium, fontSize: 15 }}>{holding.name}</Text>
+                    <Text selectable numberOfLines={1} style={{ color: C.text2, fontFamily: font.mono, fontSize: 10, marginTop: 3, textTransform: "uppercase" }}>{holding.sector}</Text>
+                  </View>
+                  <View style={{ minWidth: 116 }}>
+                    <Text selectable style={{ color: C.text2, fontFamily: font.mono, fontSize: 10, textTransform: "uppercase" }}>Buy Price</Text>
+                    <Text selectable style={{ color: C.text1, fontFamily: font.mono, fontSize: 13, marginTop: 4 }}>{formatMoney(holding.buyPrice)}</Text>
+                  </View>
+                  <View style={{ minWidth: 132 }}>
+                    <Text selectable style={{ color: C.text2, fontFamily: font.mono, fontSize: 10, textTransform: "uppercase" }}>Current Price</Text>
+                    <Text selectable style={{ color: C.text0, fontFamily: font.mono, fontSize: 13, marginTop: 4 }}>{formatMoney(holding.currentPrice)}</Text>
+                  </View>
+                  <View style={{ minWidth: 128 }}>
+                    <Text selectable style={{ color: C.text2, fontFamily: font.mono, fontSize: 10, textTransform: "uppercase" }}>Investment</Text>
+                    <Text selectable style={{ color: C.text0, fontFamily: font.mono, fontSize: 13, marginTop: 4 }}>{formatMoney(holding.investment)}</Text>
+                    <Text selectable style={{ color: C.text2, fontFamily: font.mono, fontSize: 10, marginTop: 3 }}>{holding.allocationPercent.toFixed(0)}% Allocation</Text>
+                  </View>
+                  <View style={{ minWidth: 120 }}>
+                    <Text selectable style={{ color: C.text2, fontFamily: font.mono, fontSize: 10, textTransform: "uppercase" }}>Returns P&L</Text>
+                    <Text selectable style={{ color: pnlColor, fontFamily: font.mono, fontSize: 14, marginTop: 4 }}>{holding.pnl >= 0 ? "+" : ""}{formatMoney(holding.pnl)}</Text>
+                    <Text selectable style={{ color: pnlColor, fontFamily: font.mono, fontSize: 11, marginTop: 3 }}>{pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    accessibilityLabel={`Delete ${holding.ticker}`}
+                    disabled={deletingTicker === holding.ticker}
+                    onPress={() => void handleDeleteHolding(holding)}
+                    style={{ width: 42, height: 42, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,95,126,0.10)", borderColor: "rgba(255,95,126,0.38)", borderWidth: 1, opacity: deletingTicker === holding.ticker ? 0.55 : 1 }}
+                  >
+                    <Trash2 size={18} color={C.red} />
+                  </TouchableOpacity>
+                </View>
+              );
+            })
+          )}
+        </GlassCard>
+      ) : null}
 
       {tab === "overview" ? (
         <>
@@ -189,20 +357,21 @@ export function Dashboard({ userName, studentId }: { userName: string; studentId
               <Legend color={C.text2} label="Benchmark" />
             </View>
           </GlassCard>
-          {summary && (
-            <GlassCard style={{ padding: 16, gap: 12 }} accent={C.purple}>
-              <SectionTitle title="Allocation" accent={C.purple} />
-              <Progress label="Holdings" value={Math.round((summary.holdings_value / summary.total_capital) * 100)} color={C.green} />
-              <Progress label="Cash" value={Math.round((summary.cash_balance / summary.total_capital) * 100)} color={C.cyan} />
-            </GlassCard>
-          )}
         </>
+      ) : null}
+
+      {tab === "allocation" && summary ? (
+        <GlassCard style={{ padding: 16, gap: 12 }} accent={C.purple}>
+          <SectionTitle title="Allocation" accent={C.purple} />
+          <Progress label="Holdings" value={Math.round((summary.holdings_value / summary.total_capital) * 100)} color={C.green} />
+          <Progress label="Cash" value={Math.round((summary.cash_balance / summary.total_capital) * 100)} color={C.cyan} />
+        </GlassCard>
       ) : null}
 
       {tab === "market" ? (
         <GlassCard style={{ padding: 16, gap: 8 }} accent={C.cyan}>
           {(() => {
-            const indian = marketIndices.filter((idx) => INDIAN_TICKERS.includes(idx.ticker));
+            const indian = marketIndices.filter((idx) => TRENDING_TICKERS.includes(idx.ticker));
             if (indian.length === 0) {
               return <Text style={{ color: C.text2, fontSize: 12 }}>Loading indices…</Text>;
             }
@@ -245,59 +414,6 @@ export function Dashboard({ userName, studentId }: { userName: string; studentId
         </GlassCard>
       ) : null}
 
-      {tab === "tasks" ? (
-        <GlassCard style={{ padding: 16, gap: 12 }} accent={C.gold}>
-          <SectionTitle title="This Week's Tasks" accent={C.gold} />
-          {(
-            [
-              ["Register and complete onboarding", true, "Done"],
-              ["Submit initial portfolio", true, "Done"],
-              ["Write investment thesis", true, "Done"],
-              ["Submit Week 3 rebalancing note", false, "Due Jun 8"],
-              ["Attend live strategy session", false, "Jun 10, 6PM"],
-            ] as const
-          ).map(([label, done, due]) => (
-            <View key={label} style={{ flexDirection: "row", gap: 10, alignItems: "center", borderBottomColor: C.border, borderBottomWidth: 1, paddingBottom: 9 }}>
-              <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 1, borderColor: done ? C.green : C.border2, backgroundColor: done ? "rgba(30,230,163,0.16)" : "transparent" }} />
-              <Text selectable style={{ color: done ? C.text2 : C.text1, flex: 1, fontSize: 13 }}>{label}</Text>
-              <Text selectable style={{ color: done ? C.green : C.text2, fontSize: 11 }}>{due}</Text>
-            </View>
-          ))}
-        </GlassCard>
-      ) : null}
-
-      {tab === "scoring" ? (
-        <GlassCard style={{ padding: 16, gap: 18, backgroundColor: "rgba(10,16,32,0.96)" }} accent={C.cyan}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Award size={22} color={C.cyan} />
-                <Text selectable style={{ color: C.text0, fontFamily: font.medium, fontSize: 18 }}>
-                  Weekly Risk Performance Scorecard
-                </Text>
-              </View>
-              <Text selectable style={{ color: C.text2, fontSize: 13, marginTop: 5 }}>
-                Calculated based on desk discipline and regulatory-style risk guides.
-              </Text>
-            </View>
-            <View style={{ paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: "rgba(49,230,255,0.38)", backgroundColor: "rgba(49,230,255,0.08)", alignItems: "center" }}>
-              <Text selectable style={{ color: C.cyan, fontFamily: font.medium, fontSize: 9, textTransform: "uppercase" }}>
-                Total Score
-              </Text>
-              <Text selectable style={{ color: C.cyan, fontFamily: font.mono, fontSize: 30 }}>
-                {scoreLoading ? "..." : Math.round(latestScore?.final_score ?? 0)}<Text style={{ color: C.text2, fontSize: 13 }}>/100</Text>
-              </Text>
-            </View>
-          </View>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14 }}>
-            <ScoreMetricCard label="Portfolio Perf" value={latestScore?.portfolio_score ?? 0} max={40} color={C.green} />
-            <ScoreMetricCard label="Risk Gov" value={latestScore?.risk_score ?? 0} max={20} color={C.cyan} />
-            <ScoreMetricCard label="Thesis Qual" value={latestScore?.thesis_score ?? 0} max={20} color={C.purple} />
-            <ScoreMetricCard label="Execution" value={latestScore?.execution_score ?? 0} max={10} color={C.gold} />
-            <ScoreMetricCard label="Strategy" value={latestScore?.strategy_score ?? 0} max={10} color={C.red} />
-          </View>
-        </GlassCard>
-      ) : null}
     </View>
   );
 }

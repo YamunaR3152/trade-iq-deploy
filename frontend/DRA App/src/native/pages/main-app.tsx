@@ -7,12 +7,12 @@ import type { ScrollView as ScrollViewType } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { clearActiveUser } from "../auth-store";
 import { clearMarketCache } from "../market-store";
-import { analytics } from "../api";
-import type { BackendWeeklyScore } from "../api";
+import { analytics, portfolio } from "../api";
+import type { BackendWeeklyScore, PortfolioSummary } from "../api";
 import { brandIcon, C, font, prizePoolImage, tradeIqLogo } from "../constants";
 import type { IconType, MainTab, UserData } from "../types";
 import { MarketTicker } from "../components/market-ticker";
-import { GlassCard, Progress } from "../components/ui";
+import { GlassCard, SectionTitle } from "../components/ui";
 import { Courses } from "./courses";
 import { Dashboard } from "./dashboard";
 import { Leaderboard } from "./leaderboard";
@@ -27,10 +27,43 @@ const navItems: { id: MainTab; label: string; Icon: IconType }[] = [
   { id: "courses", label: "Courses", Icon: BookOpen },
 ];
 
+function money(value: number) {
+  return `$${Number(value || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function ProfileStat({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        minWidth: 138,
+        padding: 12,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: `${color}66`,
+        backgroundColor: `${color}18`,
+        boxShadow: `inset 0 1px 0 rgba(255,255,255,0.10), 0 10px 24px ${color}12`,
+      }}
+    >
+      <Text selectable style={{ color: C.text2, fontFamily: font.medium, fontSize: 10, textTransform: "uppercase" }}>
+        {label}
+      </Text>
+      <Text selectable adjustsFontSizeToFit numberOfLines={1} minimumFontScale={0.72} style={{ color, fontFamily: font.mono, fontSize: 18, marginTop: 6 }}>
+        {value}
+      </Text>
+      <Text selectable numberOfLines={1} style={{ color: C.text1, fontSize: 11, marginTop: 4 }}>
+        {sub}
+      </Text>
+    </View>
+  );
+}
+
 export function MainApp({ userData, onLogout }: { userData: UserData | null; onLogout: () => void }) {
   const [activeTab, setActiveTab] = useState<MainTab>("dashboard");
   const [profileOpen, setProfileOpen] = useState(false);
   const [portfolioScore, setPortfolioScore] = useState<number | null>(null);
+  const [profileSummary, setProfileSummary] = useState<PortfolioSummary | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const isWide = width > 780;
@@ -50,25 +83,44 @@ export function MainApp({ userData, onLogout }: { userData: UserData | null; onL
   };
 
   useEffect(() => {
-    if (!profileOpen) setPortfolioScore(null);
+    if (!profileOpen) {
+      setPortfolioScore(null);
+      setProfileSummary(null);
+    }
   }, [profileOpen]);
 
   useEffect(() => {
-    if (!profileOpen || portfolioScore !== null) return;
-    analytics
-      .getScores(studentId)
-      .then((data) => {
-        if (data.scores.length === 0) {
-          setPortfolioScore(0);
-          return;
-        }
-        const latest = data.scores.reduce((max: BackendWeeklyScore, s: BackendWeeklyScore) =>
-          s.week_number > max.week_number ? s : max
-        );
-        setPortfolioScore(Math.round(latest.final_score));
+    if (!profileOpen) return;
+    setProfileLoading(true);
+    Promise.all([
+      portfolio.getSummary(studentId).catch(() => null),
+      analytics
+        .getScores(studentId)
+        .then((data) => {
+          if (data.scores.length === 0) return 0;
+          const latest = data.scores.reduce((max: BackendWeeklyScore, s: BackendWeeklyScore) =>
+            s.week_number > max.week_number ? s : max
+          );
+          return Math.round(latest.final_score);
+        })
+        .catch(() => 0),
+    ])
+      .then(([summary, score]) => {
+        setProfileSummary(summary);
+        setPortfolioScore(score);
       })
-      .catch(() => setPortfolioScore(0));
-  }, [profileOpen, studentId, portfolioScore]);
+      .finally(() => setProfileLoading(false));
+  }, [profileOpen, studentId]);
+
+  const profileReturn = profileSummary
+    ? `${profileSummary.total_return_pct >= 0 ? "+" : ""}${profileSummary.total_return_pct.toFixed(1)}%`
+    : "...";
+  const profileReturnColor = profileSummary && profileSummary.total_return_pct < 0 ? C.red : C.green;
+  const profilePnl = profileSummary
+    ? `${profileSummary.total_pnl >= 0 ? "+" : ""}${money(profileSummary.total_pnl)} P&L`
+    : profileLoading ? "Loading..." : "No portfolio data";
+  const profileBase = profileSummary ? `vs ${money(profileSummary.total_capital)} base` : "Portfolio base";
+  const profilePanelWidth = Math.min(width - 36, isWide ? 420 : 360);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: C.bg0 }} edges={["top", "left", "right"]}>
@@ -98,7 +150,7 @@ export function MainApp({ userData, onLogout }: { userData: UserData | null; onL
         {activeTab === "dashboard" ? <Dashboard userName={userName} studentId={studentId} /> : null}
         {activeTab === "portfolio" ? <PortfolioBuilder userData={userData} onSubmitSuccess={() => setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 150)} /> : null}
         {activeTab === "scores" ? <Scores studentId={studentId} /> : null}
-        {activeTab === "leaderboard" ? <Leaderboard /> : null}
+        {activeTab === "leaderboard" ? <Leaderboard studentId={studentId} /> : null}
         {activeTab === "courses" ? (
           <Courses 
             user={userData}
@@ -130,8 +182,9 @@ export function MainApp({ userData, onLogout }: { userData: UserData | null; onL
       </BlurView>
 
       <Modal transparent animationType="fade" visible={profileOpen} onRequestClose={() => setProfileOpen(false)}>
-        <Pressable onPress={() => setProfileOpen(false)} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-start", alignItems: "flex-end", padding: 18, paddingTop: 84 }}>
-          <GlassCard style={{ width: 300, padding: 16, gap: 13 }} accent={C.cyan}>
+        <Pressable onPress={() => setProfileOpen(false)} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-start", alignItems: isWide ? "flex-end" : "center", padding: 18, paddingTop: 84 }}>
+          <Pressable onPress={(event) => event.stopPropagation()}>
+          <GlassCard style={{ width: profilePanelWidth, padding: 16, gap: 14 }} accent={C.cyan}>
             <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
               <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: C.cyan, alignItems: "center", justifyContent: "center" }}>
                 <UserRound size={25} color={C.ink} />
@@ -145,23 +198,18 @@ export function MainApp({ userData, onLogout }: { userData: UserData | null; onL
                 </Text>
               </View>
             </View>
-            <Progress label="Portfolio score" value={portfolioScore ?? 0} color={C.cyan} />
-            <Progress label="Learning completion" value={67} color={C.purple} />
             <Text selectable style={{ color: C.text2, fontSize: 12, lineHeight: 18 }}>
               University: {userData?.university || "Pending"} | IB Sales & Trading Risk Challenge
             </Text>
-            <TouchableOpacity
-              onPress={() => {
-                setProfileOpen(false);
-                setActiveTab("scores");
-              }}
-              style={{ flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12, backgroundColor: "rgba(49,230,255,0.10)", borderColor: "rgba(49,230,255,0.26)", borderWidth: 1 }}
-            >
-              <BarChart3 size={17} color={C.cyan} />
-              <Text selectable style={{ color: C.cyan, fontFamily: font.medium, fontSize: 13 }}>
-                Scores
-              </Text>
-            </TouchableOpacity>
+            <View style={{ paddingTop: 2 }}>
+              <SectionTitle title="Portfolio Stats" accent={C.cyan} />
+            </View>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+              <ProfileStat label="Portfolio Value" value={profileSummary ? money(profileSummary.total_portfolio) : "..."} sub={profilePnl} color={C.green} />
+              <ProfileStat label="Available Cash" value={profileSummary ? money(profileSummary.cash_balance) : "..."} sub="ready to deploy" color={C.gold} />
+              <ProfileStat label="Portfolio Return" value={profileReturn} sub={profileBase} color={profileReturnColor} />
+              <ProfileStat label="Weekly Performance" value={profileLoading ? "..." : `${portfolioScore ?? 0}/100`} sub="scorecard" color={C.purple} />
+            </View>
             <TouchableOpacity
               onPress={() => {
                 clearMarketCache();
@@ -177,6 +225,7 @@ export function MainApp({ userData, onLogout }: { userData: UserData | null; onL
               </Text>
             </TouchableOpacity>
           </GlassCard>
+          </Pressable>
         </Pressable>
       </Modal>
     </SafeAreaView>

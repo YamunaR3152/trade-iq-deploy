@@ -11,10 +11,7 @@ export type UserData = {
   email: string;
   phoneNumber: string;
   university: string;
-  course: string;
   yearOfStudy: string;
-  participationType: "Individual" | "Team";
-  teamName: string;
   password: string;
 };
 

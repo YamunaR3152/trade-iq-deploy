@@ -8,11 +8,7 @@ import { AppButton, Field, GlassCard, HeaderMini, StepDots } from "../components
 import * as WebBrowser from "expo-web-browser";
 
 export function PaymentPage({ onComplete }: { onComplete: () => void }) {
-  const [processing, setProcessing] = useState(false);
-  const [cardNo, setCardNo] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [cvv, setCvv] = useState("");
-
+  
   const pay = async () => {
     await WebBrowser.openBrowserAsync(
       "https://buy.stripe.com/bJe5kC31I2TOdJlh1ocV206"
@@ -176,41 +172,6 @@ export function PaymentPage({ onComplete }: { onComplete: () => void }) {
 
 
 
-        <View
-          style={{
-            marginTop: 25,
-            padding: 24,
-            borderRadius: 24,
-            backgroundColor: "rgba(255,209,102,0.08)",
-            borderWidth: 1,
-            borderColor: "rgba(255,209,102,0.22)",
-          }}
-        >
-
-          <Text
-            style={{
-              color: C.gold,
-              fontFamily: font.heading,
-              fontSize: 22,
-              marginBottom: 10,
-            }}
-          >
-            Limited Early Access
-          </Text>
-
-          <Text
-            style={{
-              color: C.text1,
-              lineHeight: 24,
-              fontSize: 14,
-            }}
-          >
-            Join ambitious students and experience TradeIQ before the official launch.
-            Build a portfolio, defend your strategy, and compete in a premium fintech simulation.
-          </Text>
-
-        </View>
-
         <GlassCard
           accent={C.gold}
           style={{
@@ -228,42 +189,6 @@ export function PaymentPage({ onComplete }: { onComplete: () => void }) {
             }}
             contentFit="cover"
           />
-
-        </GlassCard>
-
-        <GlassCard
-          accent={C.cyan}
-          style={{
-            marginTop: 25,
-            padding: 24,
-            alignItems: "center",
-          }}
-        >
-
-          <Text
-            style={{
-              color: C.text0,
-              fontSize: 20,
-              fontFamily: font.medium,
-            }}
-          >
-            Secure Payment
-          </Text>
-
-          <Text
-            style={{
-              color: C.text2,
-              marginTop: 10,
-              textAlign: "center",
-              lineHeight: 22,
-            }}
-          >
-            Powered by Stripe
-
-            {"\n\n"}
-
-            Visa • Mastercard • Apple Pay • Google Pay
-          </Text>
 
         </GlassCard>
 
