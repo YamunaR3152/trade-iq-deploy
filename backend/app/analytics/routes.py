@@ -266,6 +266,20 @@ def _latest_trade_by_ticker(trades):
     return latest
 
 
+def _active_trades(active_holdings, trades):
+    latest_trade_lookup = _latest_trade_by_ticker(trades)
+    active_tickers = {
+        (holding.stock_ticker or "").upper()
+        for holding in active_holdings
+        if float(holding.quantity or 0) > 0
+    }
+    return [
+        latest_trade_lookup[ticker]
+        for ticker in active_tickers
+        if latest_trade_lookup.get(ticker)
+    ]
+
+
 def _refresh_active_holdings(holdings):
     active_holdings = [h for h in holdings if float(h.quantity or 0) > 0]
     for holding in active_holdings:
@@ -438,20 +452,8 @@ def _challenge_scorecard(
     # --------------------------------------------------
     # RISK SCORE (20)
     # --------------------------------------------------
-    latest_trade_lookup = _latest_trade_by_ticker(trades)
-
-    sectors = {
-        latest_trade_lookup.get(
-            (h.stock_ticker or "").upper()
-        ).sector
-        for h in active_holdings
-        if latest_trade_lookup.get(
-            (h.stock_ticker or "").upper()
-        )
-        and latest_trade_lookup.get(
-            (h.stock_ticker or "").upper()
-        ).sector
-    }
+    active_trade_rows = _active_trades(active_holdings, trades)
+    sectors = {trade.sector for trade in active_trade_rows if trade.sector}
 
     sector_count = len(sectors)
 
@@ -472,7 +474,7 @@ def _challenge_scorecard(
     # --------------------------------------------------
     thesis_texts = [
         t.thesis.strip()
-        for t in trades
+        for t in active_trade_rows
         if t.thesis and t.thesis.strip()
     ]
 
@@ -480,7 +482,7 @@ def _challenge_scorecard(
         thesis_score = 0
 
     else:
-        ai_score = _openai_thesis_points(trades)
+        ai_score = _openai_thesis_points(active_trade_rows)
 
         if ai_score is not None:
             thesis_score = ai_score
@@ -495,7 +497,25 @@ def _challenge_scorecard(
     # --------------------------------------------------
     # EXECUTION SCORE (10)
     # --------------------------------------------------
-    execution_score = 8.0
+    total_active_trades = len(active_trade_rows)
+    all_tags = []
+    for trade in active_trade_rows:
+        all_tags.extend([tag for tag in [trade.tag1, trade.tag2, trade.tag3] if tag])
+
+    unique_tags = len(set(all_tags))
+    trades_with_thesis = sum(1 for trade in active_trade_rows if trade.thesis and trade.thesis.strip())
+
+    classification_points = (
+        min(5, (unique_tags / total_active_trades) * 5)
+        if total_active_trades > 0
+        else 0
+    )
+    documentation_points = (
+        min(5, (trades_with_thesis / total_active_trades) * 5)
+        if total_active_trades > 0
+        else 0
+    )
+    execution_score = round(classification_points + documentation_points, 2)
 
     # --------------------------------------------------
     # STRATEGY SCORE (10)
@@ -540,7 +560,7 @@ def _challenge_scorecard(
             "Portfolio score based on Return on Capital. "
             "Risk score based on sector diversification. "
             "Thesis score based on AI evaluation or local thesis rubric. "
-            "Execution score baseline 8. "
+            "Execution score based on trade tags and thesis coverage. "
             "Strategy score rewards portfolio expansion."
         ),
         "source": "tradeiq-rubric",
@@ -563,6 +583,8 @@ def _score_breakdown(payload):
     total_capital = float(inputs.get("total_capital") or 10000)
     return_on_capital = float(inputs.get("return_on_capital_pct") or 0)
     thesis_count = int(inputs.get("trades_with_thesis") or 0)
+    unique_tags = int(inputs.get("unique_tags") or 0)
+    total_trades = int(inputs.get("total_trades") or 0)
 
     if active_holdings == 0:
         return [
@@ -619,8 +641,13 @@ def _score_breakdown(payload):
             "label": "Execution Quality Score",
             "score": scores["execution_score"],
             "max": 10,
-            "status": _score_status(scores["execution_score"], baseline=True),
-            "detail": "Execution quality starts at 8 points once active positions exist.",
+            "status": _score_status(scores["execution_score"]),
+            "detail": (
+                f"{unique_tags} unique trade tag"
+                f"{'' if unique_tags == 1 else 's'} and {thesis_count}/{total_trades} active trade"
+                f"{'' if total_trades == 1 else 's'} with thesis text. "
+                "Tags contribute up to 5 points and thesis coverage contributes up to 5 points."
+            ),
         },
         {
             "key": "strategy_score",
@@ -666,6 +693,7 @@ def _score_payload(user_id):
                 "max_allocation": 0.0,
                 "total_trades": 0,
                 "trades_with_thesis": 0,
+                "unique_tags": 0,
             },
             "scores": _zero_scorecard(),
             "metrics": {
@@ -690,6 +718,7 @@ def _score_payload(user_id):
     net_profit = total_portfolio - total_capital
 
     trades_by_ticker = _latest_trade_by_ticker(trades)
+    active_trade_rows = _active_trades(active_holdings, trades)
     active_sectors = {
         trades_by_ticker.get((h.stock_ticker or "").upper()).sector
         for h in active_holdings
@@ -700,6 +729,12 @@ def _score_payload(user_id):
         float(trades_by_ticker.get((h.stock_ticker or "").upper()).allocation_percent or 0)
         for h in active_holdings
         if trades_by_ticker.get((h.stock_ticker or "").upper())
+    ]
+    active_tags = [
+        tag
+        for trade in active_trade_rows
+        for tag in [trade.tag1, trade.tag2, trade.tag3]
+        if tag
     ]
 
     data = {
@@ -713,8 +748,9 @@ def _score_payload(user_id):
         "active_holdings": len(active_holdings),
         "unique_sectors": len(active_sectors),
         "max_allocation": max(active_allocations) if active_allocations else 0.0,
-        "total_trades": len(trades),
-        "trades_with_thesis": sum(1 for t in trades if t.thesis),
+        "total_trades": len(active_trade_rows),
+        "trades_with_thesis": sum(1 for t in active_trade_rows if t.thesis and t.thesis.strip()),
+        "unique_tags": len(set(active_tags)),
     }
 
     metrics = {
@@ -740,6 +776,7 @@ def _portfolio_metrics(user_id):
         }
     holdings = Holding.query.filter_by(user_id=user_id).all()
     active_holdings = _refresh_active_holdings(holdings)
+    db.session.flush()
     total_capital = float(portfolio.total_capital)
     cash_balance = float(portfolio.cash_balance)
     holdings_value = sum(float(h.market_value or 0) for h in active_holdings)
@@ -792,7 +829,9 @@ def _rerank_week(week_number):
 
 
 def _refresh_leaderboard_week(week_number):
-    users = User.query.filter(User.role != "admin").order_by(User.created_at.asc()).all()
+    users = User.query.filter(
+        (User.role.is_(None)) | (User.role != "admin")
+    ).order_by(User.created_at.asc()).all()
     for user in users:
         payload, error = _score_payload(user.user_id)
         if error:

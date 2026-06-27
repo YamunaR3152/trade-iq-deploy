@@ -16,6 +16,37 @@ def _make_trade_id() -> str:
     return "TRD-" + uuid.uuid4().hex[:6].upper()
 
 
+def _latest_trade_for_holding(user_id: str, ticker: str):
+    return TradeLog.query.filter_by(
+        user_id=user_id,
+        stock_ticker=ticker.upper(),
+    ).order_by(TradeLog.created_at.desc()).first()
+
+
+def _latest_thesis_trade_for_holding(user_id: str, ticker: str):
+    return TradeLog.query.filter_by(
+        user_id=user_id,
+        stock_ticker=ticker.upper(),
+    ).filter(
+        TradeLog.thesis.isnot(None),
+        TradeLog.thesis != "",
+    ).order_by(TradeLog.created_at.desc()).first()
+
+
+def _holding_payload(holding: Holding):
+    latest_trade = _latest_trade_for_holding(holding.user_id, holding.stock_ticker)
+    thesis_trade = _latest_thesis_trade_for_holding(holding.user_id, holding.stock_ticker)
+    payload = holding.to_dict()
+    payload.update({
+        "sector": latest_trade.sector if latest_trade else None,
+        "allocation_percent": float(latest_trade.allocation_percent or 0) if latest_trade else 0,
+        "amount_invested": float(latest_trade.amount_invested or 0) if latest_trade else 0,
+        "thesis": thesis_trade.thesis if thesis_trade else None,
+        "latest_trade_id": latest_trade.trade_id if latest_trade else None,
+    })
+    return payload
+
+
 def _update_holding(user_id: str, trade: TradeLog):
     """
     Upsert holdings table after a BUY or SELL trade.
@@ -45,13 +76,16 @@ def _update_holding(user_id: str, trade: TradeLog):
                 stock_ticker  = trade.stock_ticker,
                 stock_name    = trade.stock_name,
                 quantity      = trade.quantity,
-                avg_buy_price = float(trade.buy_price),
+                avg_buy_price = round(float(trade.amount_invested or 0) / float(trade.quantity or 1), 4),
             )
             db.session.add(holding)
 
         holding.current_price = current_price
-        holding.market_value = round(float(holding.market_value or 0) + float(trade.amount_invested or 0), 4)
-        holding.profit_loss = round(float(holding.market_value or 0) - (float(holding.avg_buy_price) * float(holding.quantity or 0)), 4)
+        holding.market_value = round(float(holding.quantity or 0) * current_price, 4)
+        holding.profit_loss = round(
+            float(holding.market_value or 0) - (float(holding.avg_buy_price) * float(holding.quantity or 0)),
+            4,
+        )
 
     elif trade.trade_type == "SELL" and holding:
         holding.quantity -= trade.quantity
@@ -87,8 +121,13 @@ def execute_trade():
     if trade_type not in ("BUY", "SELL"):
         return jsonify({"error": "trade_type must be BUY or SELL"}), 400
 
-    ticker   = data["stock_ticker"].upper()
-    quantity = int(data["quantity"])
+    ticker = data["stock_ticker"].upper()
+    try:
+        quantity = int(data["quantity"])
+    except (TypeError, ValueError):
+        return jsonify({"error": "quantity must be a whole number"}), 400
+    if quantity <= 0:
+        return jsonify({"error": "quantity must be greater than 0"}), 400
 
     try:
         submitted_buy_price = float(data.get("buy_price") or 0)
@@ -129,25 +168,42 @@ def execute_trade():
     if not portfolio:
         return jsonify({"error": "Portfolio not found"}), 404
 
+    total_capital = float(portfolio.total_capital or 0)
+    cash_balance = float(portfolio.cash_balance or 0)
+    if total_capital <= 0:
+        return jsonify({"error": "Portfolio total capital must be greater than 0"}), 400
+
     if trade_type == "BUY":
-        quantity = max(1, quantity)
         amount_invested = round(
             submitted_amount if submitted_amount and submitted_amount > 0 else current_price * quantity,
             4,
         )
+        if amount_invested <= 0:
+            return jsonify({"error": "BUY amount must be greater than 0"}), 400
+
+        allocation_pct = round((amount_invested / total_capital) * 100, 2)
+        if allocation_pct > 30:
+            return jsonify({"error": "A single BUY position cannot exceed 30% of total capital"}), 400
+        if amount_invested > cash_balance:
+            return jsonify({"error": "Insufficient cash balance for this BUY trade"}), 400
+
         portfolio.cash_balance = round(float(portfolio.cash_balance) - amount_invested, 4)
 
     elif trade_type == "SELL":
-        quantity = max(1, quantity)
+        holding = Holding.query.filter_by(user_id=user_id, stock_ticker=ticker).first()
+        if not holding or float(holding.quantity or 0) <= 0:
+            return jsonify({"error": f"No active holding found for '{ticker}'"}), 400
+        if quantity > float(holding.quantity or 0):
+            return jsonify({"error": "SELL quantity exceeds active holding quantity"}), 400
+
         amount_invested = round(
-            submitted_amount if submitted_amount and submitted_amount > 0 else current_price * quantity,
+            current_price * quantity,
             4,
         )
-        holding = Holding.query.filter_by(user_id=user_id, stock_ticker=ticker).first()
         portfolio.cash_balance = round(float(portfolio.cash_balance) + amount_invested, 4)
 
     # Build trade_log record
-    allocation_pct = round((amount_invested / float(portfolio.total_capital)) * 100, 2)
+    allocation_pct = round((amount_invested / total_capital) * 100, 2)
 
     trade = TradeLog(
         trade_id           = _make_trade_id(),
@@ -186,11 +242,49 @@ def execute_trade():
 @portfolio_bp.get("/holdings/<string:user_id>")
 @jwt_required()
 def get_holdings(user_id):
-    holdings = Holding.query.filter_by(user_id=user_id).all()
+    holdings = [
+        holding
+        for holding in Holding.query.filter_by(user_id=user_id).all()
+        if float(holding.quantity or 0) > 0
+    ]
     return jsonify({
         "user_id":  user_id,
-        "holdings": [h.to_dict() for h in holdings],
+        "holdings": [_holding_payload(h) for h in holdings],
         "count":    len(holdings),
+    }), 200
+
+
+@portfolio_bp.delete("/holding/<path:ticker>")
+@portfolio_bp.delete("/holdings/<path:ticker>")
+@jwt_required()
+def delete_holding(ticker):
+    user_id = get_jwt_identity()
+    normalized_ticker = ticker.upper()
+    holding = Holding.query.filter_by(user_id=user_id, stock_ticker=normalized_ticker).first()
+    if not holding:
+        return jsonify({"error": f"No active holding found for '{normalized_ticker}'"}), 404
+
+    portfolio = PortfolioSetup.query.filter_by(user_id=user_id).first()
+    if not portfolio:
+        return jsonify({"error": "Portfolio not found"}), 404
+
+    try:
+        live_price = pipeline.get_current_price(normalized_ticker)
+    except Exception:
+        live_price = None
+    current_price = float(live_price or holding.current_price or holding.avg_buy_price or 0)
+    cash_credit = round(float(holding.quantity or 0) * current_price, 4)
+
+    portfolio.cash_balance = round(float(portfolio.cash_balance or 0) + cash_credit, 4)
+    db.session.delete(holding)
+    TradeLog.query.filter_by(user_id=user_id, stock_ticker=normalized_ticker).delete(synchronize_session=False)
+    db.session.commit()
+
+    return jsonify({
+        "message": "Holding deleted",
+        "stock_ticker": normalized_ticker,
+        "cash_balance": float(portfolio.cash_balance),
+        "cash_credit": cash_credit,
     }), 200
 
 
@@ -207,6 +301,21 @@ def get_summary(user_id):
         return jsonify({"error": "Portfolio not found"}), 404
 
     holdings = Holding.query.filter_by(user_id=user_id).all()
+    for holding in holdings:
+        if float(holding.quantity or 0) <= 0:
+            continue
+        try:
+            live_price = pipeline.get_current_price(holding.stock_ticker)
+        except Exception:
+            live_price = None
+        current_price = float(live_price or holding.current_price or holding.avg_buy_price or 0)
+        holding.current_price = round(current_price, 4)
+        holding.market_value = round(float(holding.quantity or 0) * current_price, 4)
+        holding.profit_loss = round(
+            (current_price - float(holding.avg_buy_price or 0)) * float(holding.quantity or 0),
+            4,
+        )
+    db.session.flush()
 
     total_market_value = sum(float(h.market_value or 0) for h in holdings)
     total_pnl          = sum(float(h.profit_loss  or 0) for h in holdings)

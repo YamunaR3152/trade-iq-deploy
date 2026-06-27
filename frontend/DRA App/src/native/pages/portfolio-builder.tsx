@@ -1,6 +1,6 @@
 import { Check, Trash2, X } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { C, font, glossary, glossaryTerms, sectorOptions } from "../constants";
 import { getPortfolioDraft, savePortfolioDraft } from "../portfolio-store";
 import { analytics, market, portfolio } from "../api";
@@ -95,6 +95,45 @@ function OptionRow({ label, options, value, onChange }: { label: string; options
           <Pill key={option} label={option} active={value === option} onPress={() => onChange(option)} />
         ))}
       </ScrollView>
+    </View>
+  );
+}
+
+function CompactSelect({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={{ flex: 1, minWidth: 130 }}>
+      <Text selectable style={{ color: C.text2, fontFamily: font.medium, fontSize: 10, textTransform: "uppercase", marginBottom: 7 }}>
+        {label}
+      </Text>
+      <TouchableOpacity
+        onPress={() => setOpen(true)}
+        style={{ minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: "rgba(255,255,255,0.04)", paddingHorizontal: 12, justifyContent: "center" }}
+      >
+        <Text selectable numberOfLines={1} style={{ color: C.text0, fontFamily: font.medium, fontSize: 12 }}>
+          {value}
+        </Text>
+      </TouchableOpacity>
+      <Modal transparent animationType="fade" visible={open} onRequestClose={() => setOpen(false)}>
+        <Pressable onPress={() => setOpen(false)} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.44)", justifyContent: "center", padding: 24 }}>
+          <View style={{ borderRadius: 14, borderWidth: 1, borderColor: C.border2, backgroundColor: C.bg1, overflow: "hidden", maxWidth: 360, width: "100%", alignSelf: "center" }}>
+            {options.map((option, index) => (
+              <TouchableOpacity
+                key={option}
+                onPress={() => {
+                  onChange(option);
+                  setOpen(false);
+                }}
+                style={{ paddingHorizontal: 14, paddingVertical: 13, borderBottomWidth: index < options.length - 1 ? 1 : 0, borderBottomColor: C.border, backgroundColor: value === option ? "rgba(49,230,255,0.14)" : "rgba(255,255,255,0.03)" }}
+              >
+                <Text selectable style={{ color: value === option ? C.cyan : C.text1, fontFamily: font.medium, fontSize: 13 }}>
+                  {option}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -497,6 +536,14 @@ export function PortfolioBuilder({ userData, onSubmitSuccess }: { userData: User
         setDraftStatus("No new draft stocks to submit. Previously submitted stocks are already saved.");
         return;
       }
+      if (overLimit) {
+        setDraftStatus("Total allocation exceeds 100%. Reduce position weights before submitting.");
+        return;
+      }
+      if (!meetsMin) {
+        setDraftStatus("Portfolio must include at least 3 sectors and keep every asset at or below 30% before submitting.");
+        return;
+      }
 
       for (const position of draftPositions) {
         const enteredPrice = parseFloat(position.buyPrice.replace(/[^0-9.]/g, ""));
@@ -577,15 +624,7 @@ export function PortfolioBuilder({ userData, onSubmitSuccess }: { userData: User
         </Text>
       </View>
 
-      <GlassCard style={{ padding: 16, gap: 14, backgroundColor: "rgba(21,18,47,0.92)", borderColor: "rgba(141,124,255,0.30)" }} accent={C.purple}>
-        <SectionTitle title="Portfolio Setup" accent={C.purple} />
-        <Field label="User ID" value={setup.studentId} onChangeText={() => undefined} placeholder="202600000001" />
-        <Field label="Total Capital" value={setup.totalCapital} onChangeText={() => undefined} placeholder="$10,000" />
-        <OptionRow label="Risk Appetite" options={["High", "Moderate", "Low"]} value={setup.riskAppetite} onChange={(value) => setSetup((prev) => ({ ...prev, riskAppetite: value as PortfolioSetup["riskAppetite"] }))} />
-        <OptionRow label="Investment Horizon" options={["1 Month", "2 Months", "3 Months"]} value={setup.investmentHorizon} onChange={(value) => setSetup((prev) => ({ ...prev, investmentHorizon: value }))} />
-        <Field label="Competition Round" value={setup.competitionRound} onChangeText={(value) => setSetup((prev) => ({ ...prev, competitionRound: value }))} placeholder="June 2026" />
-      </GlassCard>
-
+      
       <GlassCard style={{ padding: 16, gap: 14, backgroundColor: "rgba(8,35,33,0.82)", borderColor: overLimit ? "rgba(255,95,126,0.34)" : "rgba(30,230,163,0.30)" }} accent={overLimit ? C.red : C.green}>
         <SectionTitle title="Allocation" accent={overLimit ? C.red : C.green} right={<Text selectable style={{ color: overLimit ? C.red : C.green, fontFamily: font.mono, fontSize: 16 }}>{totalAllocation}%</Text>} />
         <Text selectable style={{ color: C.text2, fontSize: 12, lineHeight: 17 }}>
@@ -622,22 +661,26 @@ export function PortfolioBuilder({ userData, onSubmitSuccess }: { userData: User
               <Field label="Trade Date" value={currentPosition.tradeDate} onChangeText={(value) => updateCurrentPosition("tradeDate", value)} placeholder="01/06/2026" />
             </View>
           </View>
-          <Field label="User ID" value={currentPosition.studentId} onChangeText={() => undefined} placeholder="202600000001" />
-          <Field label="Added By" value={currentPosition.addedBy} onChangeText={(value) => updateCurrentPosition("addedBy", value.toUpperCase())} placeholder="202600000002" />
-          <StockSearchField
-            ticker={currentPosition.stockTicker}
-            onSelect={(data) => {
-              setCurrentPosition((position) => ({
-                ...position,
-                stockTicker: data.ticker,
-                stockName: data.name,
-                sector: data.sector,
-                buyPrice: data.buyPrice,
-                currentSellPrice: data.currentSellPrice,
-              }));
-            }}
-          />
-          <Field label="Stock Name" value={currentPosition.stockName} onChangeText={(value) => updateCurrentPosition("stockName", value)} placeholder="Apple Inc" />
+          <View style={{ flexDirection: isNarrow ? "column" : "row", gap: 10, alignItems: "flex-start" }}>
+            <View style={{ flex: 1, width: isNarrow ? "100%" : undefined }}>
+              <StockSearchField
+                ticker={currentPosition.stockTicker}
+                onSelect={(data) => {
+                  setCurrentPosition((position) => ({
+                    ...position,
+                    stockTicker: data.ticker,
+                    stockName: data.name,
+                    sector: data.sector,
+                    buyPrice: data.buyPrice,
+                    currentSellPrice: data.currentSellPrice,
+                  }));
+                }}
+              />
+            </View>
+            <View style={{ flex: 1, width: isNarrow ? "100%" : undefined }}>
+              <Field label="Stock Name" value={currentPosition.stockName} onChangeText={(value) => updateCurrentPosition("stockName", value)} placeholder="Apple Inc" />
+            </View>
+          </View>
           <OptionRow label="Sector" options={sectorOptions} value={currentPosition.sector} onChange={(value) => updateCurrentPosition("sector", value)} />
           <View style={{ flexDirection: "row", gap: 10 }}>
             <View style={{ flex: 1 }}>
@@ -656,30 +699,15 @@ export function PortfolioBuilder({ userData, onSubmitSuccess }: { userData: User
             </View>
           </View>
           <OptionRow label="Trade Type" options={["Buy", "Sell"]} value={currentPosition.tradeType} onChange={(value) => updateCurrentPosition("tradeType", value)} />
-          <OptionRow label="Tag 1" options={tagOptions} value={currentPosition.tag1} onChange={(value) => updateCurrentPosition("tag1", value)} />
-          <OptionRow label="Tag 2" options={tagOptions} value={currentPosition.tag2} onChange={(value) => updateCurrentPosition("tag2", value)} />
-          <OptionRow label="Tag 3" options={tagOptions} value={currentPosition.tag3} onChange={(value) => updateCurrentPosition("tag3", value)} />
+          <View style={{ flexDirection: isNarrow ? "column" : "row", gap: 10 }}>
+            <CompactSelect label="Tag 1" options={tagOptions} value={currentPosition.tag1} onChange={(value) => updateCurrentPosition("tag1", value)} />
+            <CompactSelect label="Tag 2" options={tagOptions} value={currentPosition.tag2} onChange={(value) => updateCurrentPosition("tag2", value)} />
+            <CompactSelect label="Tag 3" options={tagOptions} value={currentPosition.tag3} onChange={(value) => updateCurrentPosition("tag3", value)} />
+          </View>
           <Field label="Thesis" value={currentPosition.thesis} onChangeText={(value) => updateCurrentPosition("thesis", value)} placeholder="Max 50 words" multiline />
           <Text selectable style={{ color: wordCount(currentPosition.thesis) <= 50 ? C.text2 : C.red, fontSize: 10, alignSelf: "flex-end" }}>
             {wordCount(currentPosition.thesis)}/50 words
           </Text>
-        </View>
-
-        <View style={{ gap: 10 }}>
-          <SectionTitle
-            title="Saved Draft Stocks"
-            accent={C.green}
-            right={<Text selectable style={{ color: C.green, fontFamily: font.mono, fontSize: 12 }}>{positions.length} row{positions.length === 1 ? "" : "s"}</Text>}
-          />
-          {positions.length === 0 ? (
-            <View style={{ padding: 14, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: "rgba(255,255,255,0.035)" }}>
-              <Text selectable style={{ color: C.text2, fontSize: 12 }}>
-                No saved stocks yet. Fill the stock fields above and click Save Draft.
-              </Text>
-            </View>
-          ) : (
-            <DraftTradesTable positions={positions} selectedId={editingId} onSelect={selectPositionForEditing} onDelete={(id) => void removePosition(id)} />
-          )}
         </View>
       </GlassCard>
 
@@ -716,7 +744,7 @@ export function PortfolioBuilder({ userData, onSubmitSuccess }: { userData: User
         <View style={{ flex: 1 }}>
           <AppButton label="Submit" onPress={() => {
             void submitToBackend();
-          }} disabled={draftPositions.length === 0} />
+          }} disabled={draftPositions.length === 0 || overLimit || !meetsMin} />
         </View>
       </View>
     </View>

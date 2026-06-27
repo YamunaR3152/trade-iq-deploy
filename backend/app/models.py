@@ -16,10 +16,7 @@ class User(db.Model):
     email              = db.Column(db.String(150),  unique=True, nullable=False)
     phone_number       = db.Column(db.String(20))
     university         = db.Column(db.String(150))
-    course             = db.Column(db.String(100))
     year_of_study      = db.Column(db.Integer)
-    participation_type = db.Column(db.String(20))
-    team_name          = db.Column(db.String(100))
     role               = db.Column(db.String(20),  default="student")
     password_hash      = db.Column(db.String(255),  nullable=False)
     created_at         = db.Column(db.DateTime,    default=datetime.utcnow)
@@ -38,10 +35,7 @@ class User(db.Model):
             "full_name":          self.full_name,
             "email":              self.email,
             "university":         self.university,
-            "course":             self.course,
             "year_of_study":      self.year_of_study,
-            "participation_type": self.participation_type,
-            "team_name":          self.team_name,
             "role":               self.role,
             "created_at":         str(self.created_at),
         }

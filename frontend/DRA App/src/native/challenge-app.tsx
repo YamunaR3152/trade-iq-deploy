@@ -3,13 +3,42 @@ import { useFonts as useLoraFonts, Lora_400Regular, Lora_600SemiBold, Lora_700Bo
 import { useFonts as useNeutonFonts, Neuton_700Bold, Neuton_800ExtraBold } from "@expo-google-fonts/neuton";
 import { ActivityIndicator, View } from "react-native";
 import type { Flow, UserData } from "./types";
-import { getActiveUser, saveRegisteredUser, signInUser } from "./auth-store";
+import { clearActiveUser, getActiveUser, saveRegisteredUser, signInUser } from "./auth-store";
+import { setUnauthorizedHandler } from "./api";
+import Toast, { BaseToast, ErrorToast } from "react-native-toast-message";
 import { LandingPage } from "./pages/landing-page";
 import { RegistrationPage } from "./pages/registration-page";
 import { OnboardingPage } from "./pages/onboarding-page";
 import { PaymentPage } from "./pages/payment-page";
 import { MainApp } from "./pages/main-app";
 import { SignInPage } from "./pages/sign-in-page";
+
+const toastConfig = {
+  success: (props: any) => (
+    <BaseToast
+      {...props}
+      style={{
+        borderLeftColor: "#32E875",
+        backgroundColor: "rgba(255,255,255,0.06)",
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: "#32E875",
+      }}
+      contentContainerStyle={{
+        paddingHorizontal: 15,
+      }}
+      text1Style={{
+        color: "#32E875",
+        fontSize: 14,
+        fontWeight: "700",
+      }}
+      text2Style={{
+        color: "#FFFFFF",
+        fontSize: 12,
+      }}
+    />
+  ),
+};
 
 export default function ChallengeApp() {
   const [flow, setFlow] = useState<Flow>("landing");
@@ -20,6 +49,11 @@ export default function ChallengeApp() {
 
   useEffect(() => {
     let active = true;
+    setUnauthorizedHandler(() => {
+      void clearActiveUser();
+      setUserData(null);
+      setFlow("signin");
+    });
     getActiveUser().then((activeUser) => {
       if (!active) return;
       if (activeUser) {
@@ -30,6 +64,7 @@ export default function ChallengeApp() {
     });
     return () => {
       active = false;
+      setUnauthorizedHandler(null);
     };
   }, []);
 
@@ -74,8 +109,20 @@ export default function ChallengeApp() {
   }
   if (flow === "onboarding") return <OnboardingPage onComplete={() => setFlow("payment")} />;
   if (flow === "payment") return <PaymentPage onComplete={() => setFlow("app")} />;
-  return <MainApp userData={userData} onLogout={() => {
-    setUserData(null);
-    setFlow("landing");
-  }} />;
+
+return (
+  <>
+    <MainApp
+      userData={userData}
+      onLogout={() => {
+        void clearActiveUser();
+        setUserData(null);
+        setFlow("landing");
+      }}
+    />
+
+   <Toast config={toastConfig} />
+  </>
+);
 }
+

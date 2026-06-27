@@ -1,10 +1,17 @@
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? "https://trade-iq-deploy.onrender.com";
-
+const LOCAL_API_BASE = "http://localhost:5000";
+const API_BASES = [LOCAL_API_BASE];
+console.log("API BASES =", API_BASES);
 // ── Token storage ──────────────────────────────────────────────────────────────
 const TOKEN_KEY = "dra.jwtToken";
 
 // In-memory fallback for React Native (no window.localStorage)
+
 let _memToken: string | null = null;
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler;
+}
 
 export function getToken(): string | null {
   if (typeof window !== "undefined" && window.localStorage) {
@@ -27,32 +34,85 @@ export function clearToken(): void {
   }
 }
 
+function isInvalidTokenResponse(status: number, body: string): boolean {
+  if (status !== 401 && status !== 422) return false;
+  try {
+    const parsed = JSON.parse(body) as { msg?: string };
+    return [
+      "Token has expired",
+      "Signature verification failed",
+      "Not enough segments",
+    ].includes(parsed.msg ?? "");
+  } catch {
+    return (
+      body.includes("Token has expired") ||
+      body.includes("Signature verification failed") ||
+      body.includes("Not enough segments")
+    );
+  }
+}
+
 // ── Base fetch ─────────────────────────────────────────────────────────────────
-async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function apiFetch<T>(
+  path: string,
+  options: RequestInit = {}
+): Promise<T> {
   const token = getToken();
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
-
-  if (!res.ok) {
-    const contentType = res.headers.get("content-type");
-    let errorMsg = `HTTP ${res.status}`;
-    if (contentType?.includes("application/json")) {
-      try {
-        const errData = await res.json();
-        errorMsg = (errData as { error?: string }).error ?? errorMsg;
-      } catch {
-        // JSON parse failed — use default HTTP status message
-      }
-    }
-    throw new Error(errorMsg);
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
   }
 
-  return res.json() as Promise<T>;
+  let lastNetworkError: unknown = null;
+
+  for (const base of API_BASES) {
+    const url = `${base}${path}`;
+
+    console.log("API URL =", url);
+
+    try {
+      const res = await fetch(url, {
+        ...options,
+        headers,
+      });
+
+      console.log("STATUS =", res.status);
+
+      const text = await res.text();
+
+      console.log("BODY =", text);
+
+      if (!res.ok) {
+        if (isInvalidTokenResponse(res.status, text)) {
+          clearToken();
+          unauthorizedHandler?.();
+          throw new Error("Your session has expired. Please sign in again.");
+        }
+        throw new Error(text);
+      }
+
+      return JSON.parse(text);
+
+    } catch (err) {
+      console.log("FETCH ERROR =", err);
+
+      if (err instanceof TypeError && err.message === "Failed to fetch") {
+        lastNetworkError = err;
+        continue;
+      }
+
+      throw err;
+    }
+  }
+
+  throw new Error(
+    `Could not connect to the TradeIQ backend. Tried: ${API_BASES.join(", ")}.`
+  );
 }
 
 // ── Auth ───────────────────────────────────────────────────────────────────────
@@ -136,6 +196,14 @@ export const portfolio = {
 
   getTrades(userId: string): Promise<{ user_id: string; trades: BackendTrade[]; count: number }> {
     return apiFetch(`/portfolio/trades/${userId}`);
+  },
+
+  getHoldings(userId: string): Promise<{ user_id: string; holdings: BackendHolding[]; count: number }> {
+    return apiFetch(`/portfolio/holdings/${userId}`);
+  },
+
+  deleteHolding(ticker: string): Promise<{ message: string; stock_ticker: string; cash_balance: number }> {
+    return apiFetch(`/portfolio/holding/${encodeURIComponent(ticker)}`, { method: "DELETE" });
   },
 
   executeTrade(payload: {
@@ -267,6 +335,23 @@ export type BackendScoreInputs = {
   max_allocation: number;
   total_trades: number;
   trades_with_thesis: number;
+  unique_tags: number;
+};
+
+export type BackendHolding = {
+  holding_id: number;
+  stock_ticker: string;
+  stock_name: string;
+  quantity: number;
+  avg_buy_price: number;
+  current_price: number;
+  market_value: number;
+  profit_loss: number;
+  sector?: string | null;
+  allocation_percent?: number;
+  amount_invested?: number;
+  thesis?: string | null;
+  latest_trade_id?: string | null;
 };
 
 export const analytics = {
