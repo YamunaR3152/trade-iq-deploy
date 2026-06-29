@@ -204,3 +204,5 @@ npx expo start --web
 | MySQL    | `localhost:3306`         |
 | API      | http://localhost:5000    |
 | Frontend | http://localhost:8081    |
+
+  
