@@ -14,9 +14,12 @@ from app.models import (
 )
 from app.market.pipeline import YahooFinancePipeline
 from app.scoring.final_scoring_engine import TradeIQScoringEngine
+import time
 
 analytics_bp = Blueprint("analytics", __name__, url_prefix="/analytics")
 pipeline     = YahooFinancePipeline()
+_leaderboard_cache = {}
+REFRESH_INTERVAL_SECONDS = 300
 
 OPENAI_SCORE_MODEL = os.getenv("OPENAI_SCORE_MODEL", "gpt-4.1-mini")
 
@@ -858,8 +861,13 @@ def _leaderboard_entry_payload(entry):
 def get_leaderboard():
     week = request.args.get("week", default=date.today().isocalendar()[1], type=int)
 
-    _refresh_leaderboard_week(week)
-    db.session.commit()
+    now = time.time()
+    last_refresh = _leaderboard_cache.get(week)
+
+    if last_refresh is None or (now - last_refresh) > REFRESH_INTERVAL_SECONDS:
+        _refresh_leaderboard_week(week)
+        db.session.commit()
+        _leaderboard_cache[week] = now
 
     entries = Leaderboard.query.filter_by(week_number=week).order_by(
         Leaderboard.rank_position.asc()
@@ -870,7 +878,6 @@ def get_leaderboard():
         "count":   len(entries),
         "entries": [_leaderboard_entry_payload(e) for e in entries],
     }), 200
-
 
 # ─────────────────────────────────────────
 # GET /analytics/scores/<user_id>
