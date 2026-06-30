@@ -1,3 +1,4 @@
+import os
 from flask import Flask
 from app.extensions import db, jwt, cors
 
