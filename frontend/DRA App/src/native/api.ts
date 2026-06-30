@@ -1,4 +1,4 @@
-const LOCAL_API_BASE = "http://localhost:5000";
+const LOCAL_API_BASE = process.env.EXPO_PUBLIC_API_URL || "https://trade-iq-deploy.onrender.com";
 const API_BASES = [LOCAL_API_BASE];
 console.log("API BASES =", API_BASES);
 // ── Token storage ──────────────────────────────────────────────────────────────
