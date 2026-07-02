@@ -4,5 +4,5 @@ COPY package.json package-lock.json ./
 RUN npm install
 COPY . .
 EXPOSE 8081
-ENV EXPO_PUBLIC_API_URL=http://localhost:5000
+ENV EXPO_PUBLIC_API_URL=https://trade-iq-deploy.onrender.com
 CMD ["npx", "expo", "start", "--web", "--port", "8081", "--non-interactive"]
