@@ -1,5 +1,10 @@
-const LOCAL_API_BASE = process.env.EXPO_PUBLIC_API_URL || "https://trade-iq-deploy.onrender.com";
-const API_BASES = [LOCAL_API_BASE];
+const DEFAULT_API_BASE = "https://trade-iq-deploy-production.up.railway.app";
+const configuredApiBase = process.env.EXPO_PUBLIC_API_URL;
+const ENV_API_BASE = (configuredApiBase || DEFAULT_API_BASE).replace(/\/+$/, "");
+const isLocalWeb =
+  typeof window !== "undefined" &&
+  ["localhost", "127.0.0.1"].includes(window.location.hostname);
+const API_BASES = isLocalWeb && !configuredApiBase ? ["http://localhost:5000"] : [ENV_API_BASE];
 console.log("API BASES =", API_BASES);
 // ── Token storage ──────────────────────────────────────────────────────────────
 const TOKEN_KEY = "dra.jwtToken";
@@ -129,6 +134,7 @@ export type BackendUser = {
 };
 
 type AuthResponse = { message: string; user: BackendUser; token: string };
+type GoogleAuthResponse = AuthResponse & { is_new_user: boolean };
 
 export const auth = {
   register(payload: {
@@ -154,6 +160,13 @@ export const auth = {
     return apiFetch<AuthResponse>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
+    });
+  },
+
+  google(idToken: string): Promise<GoogleAuthResponse> {
+    return apiFetch<GoogleAuthResponse>("/auth/google", {
+      method: "POST",
+      body: JSON.stringify({ id_token: idToken }),
     });
   },
 };

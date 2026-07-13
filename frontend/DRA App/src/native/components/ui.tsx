@@ -3,6 +3,7 @@ import { AlertCircle, Eye, EyeOff } from "lucide-react-native";
 import type React from "react";
 import { useState } from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
+import Svg, { Path } from "react-native-svg";
 import { brandLogo, C, font } from "../constants";
 import { tapHaptic } from "../utils";
 
@@ -92,6 +93,70 @@ export function AppButton({
       </Text>
       {icon}
     </TouchableOpacity>
+  );
+}
+
+function GoogleLogo() {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 48 48">
+      <Path fill="#FFC107" d="M43.61 20.08H42V20H24v8h11.3C33.65 32.66 29.22 36 24 36c-6.63 0-12-5.37-12-12s5.37-12 12-12c3.06 0 5.84 1.15 7.96 3.04l5.66-5.66C34.05 6.05 29.27 4 24 4 12.95 4 4 12.95 4 24s8.95 20 20 20 20-8.95 20-20c0-1.34-.14-2.65-.39-3.92Z" />
+      <Path fill="#FF3D00" d="m6.31 14.69 6.57 4.82C14.66 15.11 18.96 12 24 12c3.06 0 5.84 1.15 7.96 3.04l5.66-5.66C34.05 6.05 29.27 4 24 4 16.32 4 9.66 8.34 6.31 14.69Z" />
+      <Path fill="#4CAF50" d="M24 44c5.17 0 9.86-1.98 13.41-5.19l-6.19-5.24C29.14 35.15 26.63 36 24 36c-5.2 0-9.62-3.31-11.28-7.94l-6.52 5.03C9.51 39.56 16.23 44 24 44Z" />
+      <Path fill="#1976D2" d="M43.61 20.08H42V20H24v8h11.3a12.04 12.04 0 0 1-4.09 5.57l.01-.01 6.19 5.24C36.97 39.2 44 34 44 24c0-1.34-.14-2.65-.39-3.92Z" />
+    </Svg>
+  );
+}
+
+export function GoogleAuthButton({
+  label,
+  onPress,
+  disabled,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.86}
+      disabled={disabled}
+      onPress={() => {
+        tapHaptic();
+        onPress();
+      }}
+      style={{
+        minHeight: 54,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 14,
+        opacity: disabled ? 0.58 : 1,
+        backgroundColor: "#ffffff",
+        borderColor: "rgba(255,255,255,0.82)",
+        borderWidth: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        flexDirection: "row",
+        gap: 10,
+        boxShadow: "0 14px 34px rgba(0,0,0,0.28)",
+      }}
+    >
+      <GoogleLogo />
+      <Text selectable style={{ color: "#1f2937", fontFamily: font.medium, fontSize: 15, textAlign: "center", flexShrink: 1 }}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+export function AuthDivider() {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+      <View style={{ flex: 1, height: 1, backgroundColor: C.border2 }} />
+      <Text selectable style={{ color: C.text2, fontFamily: font.medium, fontSize: 11, textTransform: "uppercase" }}>
+        or
+      </Text>
+      <View style={{ flex: 1, height: 1, backgroundColor: C.border2 }} />
+    </View>
   );
 }
 

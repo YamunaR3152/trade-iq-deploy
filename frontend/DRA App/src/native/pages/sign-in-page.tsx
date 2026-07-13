@@ -4,13 +4,22 @@ import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { C, font } from "../constants";
 import type { UserData } from "../types";
-import { AppButton, ErrorNotice, Field, GlassCard, HeaderMini } from "../components/ui";
+import { AppButton, AuthDivider, ErrorNotice, Field, GlassCard, GoogleAuthButton, HeaderMini } from "../components/ui";
 
-export function SignInPage({ onSubmit, onBack }: { onSubmit: (email: string, password: string) => Promise<UserData | string | null>; onBack: () => void }) {
+export function SignInPage({
+  onSubmit,
+  onGoogleSignIn,
+  onBack,
+}: {
+  onSubmit: (email: string, password: string) => Promise<UserData | string | null>;
+  onGoogleSignIn: () => Promise<UserData | string | null>;
+  onBack: () => void;
+}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -19,6 +28,16 @@ export function SignInPage({ onSubmit, onBack }: { onSubmit: (email: string, pas
       setError(typeof result === "string" ? result : "Sign in failed. Check your connection.");
     }
     setSubmitting(false);
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setGoogleSubmitting(true);
+    const result = await onGoogleSignIn();
+    if (!result || typeof result === "string") {
+      setError(typeof result === "string" ? result : "Google sign in failed. Please try again.");
+    }
+    setGoogleSubmitting(false);
   };
 
   return (
@@ -32,6 +51,8 @@ export function SignInPage({ onSubmit, onBack }: { onSubmit: (email: string, pas
         </TouchableOpacity>
         <HeaderMini title="Login to your Account" subtitle="" />
         <GlassCard style={{ padding: 18, gap: 15 }} accent={C.cyan}>
+          <GoogleAuthButton label={googleSubmitting ? "Connecting to Google..." : "Sign in with Google"} onPress={handleGoogleSignIn} disabled={submitting || googleSubmitting} />
+          <AuthDivider />
           <Field label="Email" value={email} onChangeText={(value) => {
             setError("");
             setEmail(value);
@@ -43,7 +64,7 @@ export function SignInPage({ onSubmit, onBack }: { onSubmit: (email: string, pas
           {error ? (
             <ErrorNotice message={error} />
           ) : null}
-          <AppButton label={submitting ? "Signing In..." : "Sign In"} onPress={handleSubmit} disabled={submitting || !email.trim() || !password.trim()} icon={<LogIn size={18} color={C.green} />} />
+          <AppButton label={submitting ? "Signing In..." : "Sign In"} onPress={handleSubmit} disabled={submitting || googleSubmitting || !email.trim() || !password.trim()} icon={<LogIn size={18} color={C.green} />} />
         </GlassCard>
       </ScrollView>
     </SafeAreaView>

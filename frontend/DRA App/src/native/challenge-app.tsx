@@ -3,7 +3,7 @@ import { useFonts as useLoraFonts, Lora_400Regular, Lora_600SemiBold, Lora_700Bo
 import { useFonts as useNeutonFonts, Neuton_700Bold, Neuton_800ExtraBold } from "@expo-google-fonts/neuton";
 import { ActivityIndicator, View } from "react-native";
 import type { Flow, UserData } from "./types";
-import { clearActiveUser, getActiveUser, saveRegisteredUser, signInUser } from "./auth-store";
+import { clearActiveUser, getActiveUser, saveRegisteredUser, signInUser, signInWithGoogle } from "./auth-store";
 import { setUnauthorizedHandler } from "./api";
 import Toast, { BaseToast, ErrorToast } from "react-native-toast-message";
 import { LandingPage } from "./pages/landing-page";
@@ -92,6 +92,16 @@ export default function ChallengeApp() {
             return err instanceof Error ? err.message : "Sign in failed";
           }
         }}
+        onGoogleSignIn={async () => {
+          try {
+            const { user, isNewUser } = await signInWithGoogle();
+            setUserData(user);
+            setFlow(isNewUser ? "onboarding" : "app");
+            return user;
+          } catch (err) {
+            return err instanceof Error ? err.message : "Google sign in failed";
+          }
+        }}
       />
     );
   }
@@ -103,6 +113,16 @@ export default function ChallengeApp() {
           const savedUser = await saveRegisteredUser(data);
           setUserData(savedUser);
           setFlow("onboarding");
+        }}
+        onGoogleRegister={async () => {
+          try {
+            const { user, isNewUser } = await signInWithGoogle();
+            setUserData(user);
+            setFlow(isNewUser ? "onboarding" : "app");
+            return user;
+          } catch (err) {
+            return err instanceof Error ? err.message : "Google registration failed";
+          }
         }}
       />
     );
