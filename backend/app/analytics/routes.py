@@ -6,6 +6,7 @@ from datetime import date, datetime
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy.orm import joinedload
 
 from app.extensions import db
 from app.models import (
@@ -283,14 +284,15 @@ def _active_trades(active_holdings, trades):
     ]
 
 
-def _refresh_active_holdings(holdings):
+def _refresh_active_holdings(holdings, refresh_prices=True):
     active_holdings = [h for h in holdings if float(h.quantity or 0) > 0]
     for holding in active_holdings:
         live_price = None
-        try:
-            live_price = pipeline.get_current_price(holding.stock_ticker)
-        except Exception:
-            live_price = None
+        if refresh_prices:
+            try:
+                live_price = pipeline.get_current_price(holding.stock_ticker)
+            except Exception:
+                live_price = None
 
         current_price = float(live_price or holding.current_price or holding.avg_buy_price or 0)
         quantity = float(holding.quantity or 0)
@@ -679,7 +681,7 @@ def _zero_scorecard():
     }
 
 
-def _score_payload(user_id):
+def _score_payload(user_id, refresh_prices=True):
     portfolio = PortfolioSetup.query.filter_by(user_id=user_id).first()
     if not portfolio:
         return {
@@ -710,7 +712,7 @@ def _score_payload(user_id):
 
     trades = TradeLog.query.filter_by(user_id=user_id).all()
     holdings = Holding.query.filter_by(user_id=user_id).all()
-    active_holdings = _refresh_active_holdings(holdings)
+    active_holdings = _refresh_active_holdings(holdings, refresh_prices=refresh_prices)
     db.session.flush()
 
     total_capital = float(portfolio.total_capital or 10000)
@@ -767,7 +769,7 @@ def _score_payload(user_id):
     return {"inputs": data, "scores": result, "metrics": metrics}, None
 
 
-def _portfolio_metrics(user_id):
+def _portfolio_metrics(user_id, refresh_prices=True):
     portfolio = PortfolioSetup.query.filter_by(user_id=user_id).first()
     if not portfolio:
         return {
@@ -778,7 +780,7 @@ def _portfolio_metrics(user_id):
             "net_profit": 0.0,
         }
     holdings = Holding.query.filter_by(user_id=user_id).all()
-    active_holdings = _refresh_active_holdings(holdings)
+    active_holdings = _refresh_active_holdings(holdings, refresh_prices=refresh_prices)
     db.session.flush()
     total_capital = float(portfolio.total_capital)
     cash_balance = float(portfolio.cash_balance)
@@ -809,44 +811,77 @@ def _upsert_week_score(user_id, week_number, result):
     return weekly
 
 
+def _student_users():
+    return User.query.filter(
+        (User.role.is_(None)) | (User.role != "admin")
+    ).order_by(User.created_at.asc(), User.full_name.asc()).all()
+
+
+def _leaderboard_entries_query(week_number):
+    return Leaderboard.query.join(User).filter(
+        Leaderboard.week_number == week_number,
+        (User.role.is_(None)) | (User.role != "admin"),
+    ).options(joinedload(Leaderboard.user))
+
+
+def _copy_score_to_leaderboard(score, rank_position):
+    entry = Leaderboard.query.filter_by(
+        user_id=score.user_id,
+        week_number=score.week_number,
+    ).first()
+    if not entry:
+        entry = Leaderboard(user_id=score.user_id, week_number=score.week_number)
+        db.session.add(entry)
+
+    entry.portfolio_score = score.portfolio_score
+    entry.risk_score = score.risk_score
+    entry.thesis_score = score.thesis_score
+    entry.execution_score = score.execution_score
+    entry.strategy_score = score.strategy_score
+    entry.final_score = score.final_score
+    entry.rank_position = rank_position
+    return entry
+
+
 def _rerank_week(week_number):
-    scores = WeeklyScore.query.filter_by(week_number=week_number).order_by(
-        WeeklyScore.final_score.desc(),
-        WeeklyScore.created_at.asc(),
-    ).all()
+    users = _student_users()
+    scores_by_user_id = {
+        score.user_id: score
+        for score in WeeklyScore.query.filter_by(week_number=week_number).all()
+    }
 
-    for index, score in enumerate(scores, start=1):
+    for user in users:
+        if user.user_id not in scores_by_user_id:
+            scores_by_user_id[user.user_id] = _upsert_week_score(
+                user.user_id,
+                week_number,
+                _zero_scorecard(),
+            )
+
+    db.session.flush()
+
+    ranked_users = sorted(
+        users,
+        key=lambda user: (
+            -float(scores_by_user_id[user.user_id].final_score or 0),
+            user.created_at or datetime.min,
+            (user.full_name or "").lower(),
+            user.user_id,
+        ),
+    )
+
+    for index, user in enumerate(ranked_users, start=1):
+        score = scores_by_user_id[user.user_id]
         score.rank_position = index
-
-        entry = Leaderboard.query.filter_by(user_id=score.user_id, week_number=week_number).first()
-        if not entry:
-            entry = Leaderboard(user_id=score.user_id, week_number=week_number)
-            db.session.add(entry)
-        entry.portfolio_score = score.portfolio_score
-        entry.risk_score = score.risk_score
-        entry.thesis_score = score.thesis_score
-        entry.execution_score = score.execution_score
-        entry.strategy_score = score.strategy_score
-        entry.final_score = score.final_score
-        entry.rank_position = index
+        _copy_score_to_leaderboard(score, index)
 
 
 def _refresh_leaderboard_week(week_number):
-    users = User.query.filter(
-        (User.role.is_(None)) | (User.role != "admin")
-    ).order_by(User.created_at.asc()).all()
-    for user in users:
-        payload, error = _score_payload(user.user_id)
-        if error:
-            continue
-        _upsert_week_score(user.user_id, week_number, payload["scores"])
     _rerank_week(week_number)
 
 
 def _leaderboard_entry_payload(entry):
     data = entry.to_dict()
-    metrics = _portfolio_metrics(entry.user_id) or {}
-    data["portfolio_value"] = metrics.get("portfolio_value", 10000.0)
     data["team_name"] = getattr(entry.user, "team_name", None) if entry.user else None
     return data
 
@@ -863,13 +898,19 @@ def get_leaderboard():
 
     now = time.time()
     last_refresh = _leaderboard_cache.get(week)
+    registered_count = len(_student_users())
+    ranked_count = _leaderboard_entries_query(week).count()
 
-    if last_refresh is None or (now - last_refresh) > REFRESH_INTERVAL_SECONDS:
+    if (
+        last_refresh is None
+        or (now - last_refresh) > REFRESH_INTERVAL_SECONDS
+        or ranked_count != registered_count
+    ):
         _refresh_leaderboard_week(week)
         db.session.commit()
         _leaderboard_cache[week] = now
 
-    entries = Leaderboard.query.filter_by(week_number=week).order_by(
+    entries = _leaderboard_entries_query(week).order_by(
         Leaderboard.rank_position.asc()
     ).all()
 

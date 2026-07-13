@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1013397127798",
+    "project_id": "tradeiq-26",
+    "storage_bucket": "tradeiq-26.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1013397127798:android:53117055bba3d42f659557",
+        "android_client_info": {
+          "package_name": "com.ishita_ghosh.tradeiq"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1013397127798-nb34o20mn4qd26opc8etp7mth7aqqe7i.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyABJIIXZljuRcqx9Y7uQN1FFEp7qKpp3BM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1013397127798-nb34o20mn4qd26opc8etp7mth7aqqe7i.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
