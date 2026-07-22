@@ -134,7 +134,7 @@ def _hash_code(code: str) -> str:
 
 
 def _send_reset_email(to_email: str, full_name: str, code: str) -> None:
-    host = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    host = os.getenv("SMTP_HOST", "smtp.hostinger.com")
     port = int(os.getenv("SMTP_PORT", "587"))
     username = os.getenv("SMTP_USERNAME", "info@digitalriskacademy.com")
     password = os.getenv("SMTP_PASSWORD")
