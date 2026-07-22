@@ -1,4 +1,4 @@
-const DEFAULT_API_BASE = "https://trade-iq-deploy-production.up.railway.app";
+const DEFAULT_API_BASE = "https://trade-iq-deploy.onrender.com";
 const configuredApiBase = process.env.EXPO_PUBLIC_API_URL;
 const ENV_API_BASE = (configuredApiBase || DEFAULT_API_BASE).replace(/\/+$/, "");
 const isLocalWeb =
@@ -167,6 +167,27 @@ export const auth = {
     return apiFetch<GoogleAuthResponse>("/auth/google", {
       method: "POST",
       body: JSON.stringify({ id_token: idToken }),
+    });
+  },
+
+  forgotPassword(email: string): Promise<{ message: string }> {
+    return apiFetch("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  verifyResetCode(email: string, code: string): Promise<{ message: string; reset_token: string }> {
+    return apiFetch("/auth/verify-reset-code", {
+      method: "POST",
+      body: JSON.stringify({ email, code }),
+    });
+  },
+
+  resetPassword(resetToken: string, newPassword: string): Promise<{ message: string }> {
+    return apiFetch("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ reset_token: resetToken, new_password: newPassword }),
     });
   },
 };

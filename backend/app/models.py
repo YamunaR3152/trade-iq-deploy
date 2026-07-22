@@ -41,6 +41,18 @@ class User(db.Model):
             "created_at":         str(self.created_at),
         }
 
+class PasswordReset(db.Model):
+    __tablename__ = "password_resets"
+
+    id          = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id     = db.Column(db.String(20), db.ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
+    email       = db.Column(db.String(150), nullable=False)
+    code_hash   = db.Column(db.String(255), nullable=False)
+    expires_at  = db.Column(db.DateTime, nullable=False)
+    attempts    = db.Column(db.Integer, default=0)
+    verified    = db.Column(db.Boolean, default=False)
+    used        = db.Column(db.Boolean, default=False)
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
 
 # ─────────────────────────────────────────
 # portfolio_setup
