@@ -6,17 +6,9 @@ import { C, font } from "../constants";
 import { generateStudentId } from "../auth-store";
 import type { UserData } from "../types";
 import { formatDobInput, getAge, parseDob } from "../utils";
-import { AppButton, AuthDivider, ErrorNotice, Field, GlassCard, GoogleAuthButton, HeaderMini, StepDots } from "../components/ui";
+import { AppButton, ErrorNotice, Field, GlassCard, HeaderMini, StepDots } from "../components/ui";
 
-export function RegistrationPage({
-  onSubmit,
-  onGoogleRegister,
-  onSignIn,
-}: {
-  onSubmit: (data: UserData) => void | Promise<void>;
-  onGoogleRegister: () => Promise<UserData | string | null>;
-  onSignIn: () => void;
-}) {
+export function RegistrationPage({ onSubmit, onSignIn }: { onSubmit: (data: UserData) => void | Promise<void>; onSignIn: () => void }) {
   const [form, setForm] = useState<UserData>({
     studentId: "",
     fullName: "",
@@ -31,7 +23,6 @@ export function RegistrationPage({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [googleSubmitting, setGoogleSubmitting] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -92,24 +83,13 @@ export function RegistrationPage({
     }
   };
 
-  const handleGoogleRegister = async () => {
-    setSubmitError("");
-    setGoogleSubmitting(true);
-    const result = await onGoogleRegister();
-    if (!result || typeof result === "string") {
-      setSubmitError(typeof result === "string" ? result : "Google registration failed. Please try again.");
-    }
-    setGoogleSubmitting(false);
-  };
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: C.bg0 }} edges={["top", "left", "right"]}>
       <ScrollView contentInsetAdjustmentBehavior="automatic" style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: 40 }}>
         <HeaderMini title="Create your Account" subtitle="" />
         <StepDots current={0} />
         <GlassCard style={{ padding: 18, gap: 15 }} accent={C.purple}>
-          <GoogleAuthButton label={googleSubmitting ? "Connecting to Google..." : "Continue with Google"} onPress={handleGoogleRegister} disabled={submitting || googleSubmitting} />
-          <AuthDivider />
+         
           <Field label="Full Name" value={form.fullName} onChangeText={set("fullName")} placeholder="John Smith" />
           <Field
             label="Date of Birth"
@@ -130,7 +110,7 @@ export function RegistrationPage({
           <Field label="Organization" value={form.university} onChangeText={set("university")} placeholder="NYU" />
           <Field label="Password" value={form.password} onChangeText={set("password")} placeholder="Minimum 6 characters" secureTextEntry showPasswordToggle error={errors.password} />
           {submitError ? <ErrorNotice message={submitError} /> : null}
-          <AppButton label={submitting ? "Creating Account..." : "Continue to Onboarding"} onPress={handleContinue} disabled={!canContinue || googleSubmitting} icon={<ChevronRight size={18} color={C.green} />} />
+          <AppButton label={submitting ? "Creating Account..." : "Continue to Onboarding"} onPress={handleContinue} disabled={!canContinue} icon={<ChevronRight size={18} color={C.green} />} />
           <View style={{ flexDirection: "row", justifyContent: "center", gap: 4, flexWrap: "wrap" }}>
             <Text selectable style={{ color: C.text2, fontFamily: font.regular, fontSize: 12 }}>
               Already have an account?

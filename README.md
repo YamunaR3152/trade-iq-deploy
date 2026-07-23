@@ -44,10 +44,13 @@ docker compose down
 
 ### Connection details
 
+Inside Docker, the backend talks to MySQL at `mysql:3306`.
+If you run the backend directly on your machine while MySQL is in Docker, use `localhost:3307`.
+
 | Field    | Value       |
 |----------|-------------|
 | Host     | `localhost` |
-| Port     | `3306`      |
+| Port     | `3307`      |
 | Database | `tradeiq`   |
 | User     | `root`      |
 | Password | _(empty)_   |

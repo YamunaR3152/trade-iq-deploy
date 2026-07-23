@@ -1,3 +1,4 @@
+# this is backend/models.py
 from datetime import datetime
 from app.extensions import db
 
@@ -9,35 +10,35 @@ from app.extensions import db
 class User(db.Model):
     __tablename__ = "users"
 
-    user_id            = db.Column(db.String(20),  primary_key=True)
-    full_name          = db.Column(db.String(100),  nullable=False)
-    age                = db.Column(db.Integer)
-    date_of_birth      = db.Column(db.Date)
-    email              = db.Column(db.String(150),  unique=True, nullable=False)
-    phone_number       = db.Column(db.String(20))
-    university         = db.Column(db.String(150))
-    year_of_study      = db.Column(db.Integer)
-    role               = db.Column(db.String(20),  default="student")
-    password_hash      = db.Column(db.String(255),  nullable=False)
-    created_at         = db.Column(db.DateTime,    default=datetime.utcnow)
+    user_id       = db.Column(db.String(20),  primary_key=True)
+    full_name     = db.Column(db.String(100), nullable=False)
+    age           = db.Column(db.Integer)
+    date_of_birth = db.Column(db.Date)
+    email         = db.Column(db.String(150), unique=True, nullable=False)
+    phone_number  = db.Column(db.String(20))
+    university    = db.Column(db.String(150))
+    year_of_study = db.Column(db.Integer)
+    role          = db.Column(db.String(20),  default="student")
+    password_hash = db.Column(db.String(255), nullable=False)
+    created_at    = db.Column(db.DateTime,    default=datetime.utcnow)
 
     # relationships
-    portfolio   = db.relationship("PortfolioSetup",  backref="user", uselist=False)
-    trades      = db.relationship("TradeLog",        backref="user")
-    holdings    = db.relationship("Holding",         backref="user")
-    risk        = db.relationship("RiskMetrics",     backref="user", uselist=False)
-    scores      = db.relationship("WeeklyScore",     backref="user")
-    leaderboard = db.relationship("Leaderboard",     backref="user")
+    portfolio   = db.relationship("PortfolioSetup", backref="user", uselist=False)
+    trades      = db.relationship("TradeLog",       backref="user")
+    holdings    = db.relationship("Holding",        backref="user")
+    risk        = db.relationship("RiskMetrics",    backref="user", uselist=False)
+    scores      = db.relationship("WeeklyScore",    backref="user")
+    leaderboard = db.relationship("Leaderboard",    backref="user")
 
     def to_dict(self):
         return {
-            "user_id":            self.user_id,
-            "full_name":          self.full_name,
-            "email":              self.email,
-            "university":         self.university,
-            "year_of_study":      self.year_of_study,
-            "role":               self.role,
-            "created_at":         str(self.created_at),
+            "user_id":       self.user_id,
+            "full_name":     self.full_name,
+            "email":         self.email,
+            "university":    self.university,
+            "year_of_study": self.year_of_study,
+            "role":          self.role,
+            "created_at":    str(self.created_at),
         }
 
 
@@ -61,8 +62,8 @@ class PortfolioSetup(db.Model):
         return {
             "portfolio_id":       self.portfolio_id,
             "user_id":            self.user_id,
-            "total_capital":      float(self.total_capital),
-            "cash_balance":       float(self.cash_balance),
+            "total_capital":      float(self.total_capital or 0),
+            "cash_balance":       float(self.cash_balance or 0),
             "risk_appetite":      self.risk_appetite,
             "investment_horizon": self.investment_horizon,
             "competition_round":  self.competition_round,
@@ -76,8 +77,8 @@ class PortfolioSetup(db.Model):
 class TradeLog(db.Model):
     __tablename__ = "trade_log"
 
-    trade_id           = db.Column(db.String(20),  primary_key=True)
-    user_id            = db.Column(db.String(20),  db.ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
+    trade_id           = db.Column(db.String(20), primary_key=True)
+    user_id            = db.Column(db.String(20), db.ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
     trade_date         = db.Column(db.Date)
     stock_ticker       = db.Column(db.String(20))
     stock_name         = db.Column(db.String(100))
@@ -92,6 +93,7 @@ class TradeLog(db.Model):
     tag2               = db.Column(db.String(100))
     tag3               = db.Column(db.String(100))
     thesis             = db.Column(db.Text)
+    idempotency_key    = db.Column(db.String(64), unique=True, nullable=True)
     created_at         = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -112,6 +114,7 @@ class TradeLog(db.Model):
             "tag2":               self.tag2,
             "tag3":               self.tag3,
             "thesis":             self.thesis,
+            "idempotency_key":    self.idempotency_key,
         }
 
 
@@ -172,8 +175,8 @@ class InvestmentThesis(db.Model):
 class ThesisScore(db.Model):
     __tablename__ = "thesis_scores"
 
-    score_id                   = db.Column(db.Integer,    primary_key=True, autoincrement=True)
-    thesis_id                  = db.Column(db.Integer,    db.ForeignKey("investment_thesis.thesis_id", ondelete="CASCADE"))
+    score_id                   = db.Column(db.Integer,     primary_key=True, autoincrement=True)
+    thesis_id                  = db.Column(db.Integer,     db.ForeignKey("investment_thesis.thesis_id", ondelete="CASCADE"))
     clarity_score              = db.Column(db.Numeric(5, 2))
     reasoning_score            = db.Column(db.Numeric(5, 2))
     risk_awareness_score       = db.Column(db.Numeric(5, 2))
@@ -225,29 +228,32 @@ class RiskMetrics(db.Model):
 
 class WeeklyScore(db.Model):
     __tablename__ = "weekly_scores"
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "week_number", name="uq_weekly_scores_user_week"),
+    )
 
-    score_id       = db.Column(db.Integer,    primary_key=True, autoincrement=True)
-    user_id        = db.Column(db.String(20), db.ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
-    week_number    = db.Column(db.Integer,    nullable=False)
-    portfolio_score= db.Column(db.Numeric(5, 2))
-    risk_score     = db.Column(db.Numeric(5, 2))
-    thesis_score   = db.Column(db.Numeric(5, 2))
-    execution_score= db.Column(db.Numeric(5, 2))
-    strategy_score = db.Column(db.Numeric(5, 2))
-    final_score    = db.Column(db.Numeric(5, 2))
-    rank_position  = db.Column(db.Integer)
-    created_at     = db.Column(db.DateTime, default=datetime.utcnow)
+    score_id        = db.Column(db.Integer,    primary_key=True, autoincrement=True)
+    user_id         = db.Column(db.String(20), db.ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
+    week_number     = db.Column(db.Integer,    nullable=False)
+    portfolio_score = db.Column(db.Numeric(5, 2))
+    risk_score      = db.Column(db.Numeric(5, 2))
+    thesis_score    = db.Column(db.Numeric(5, 2))
+    execution_score = db.Column(db.Numeric(5, 2))
+    strategy_score  = db.Column(db.Numeric(5, 2))
+    final_score     = db.Column(db.Numeric(5, 2))
+    rank_position   = db.Column(db.Integer)
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
         return {
-            "week_number":    self.week_number,
-            "portfolio_score":float(self.portfolio_score or 0),
-            "risk_score":     float(self.risk_score or 0),
-            "thesis_score":   float(self.thesis_score or 0),
-            "execution_score":float(self.execution_score or 0),
-            "strategy_score": float(self.strategy_score or 0),
-            "final_score":    float(self.final_score or 0),
-            "rank_position":  self.rank_position,
+            "week_number":     self.week_number,
+            "portfolio_score": float(self.portfolio_score or 0),
+            "risk_score":      float(self.risk_score or 0),
+            "thesis_score":    float(self.thesis_score or 0),
+            "execution_score": float(self.execution_score or 0),
+            "strategy_score":  float(self.strategy_score or 0),
+            "final_score":     float(self.final_score or 0),
+            "rank_position":   self.rank_position,
         }
 
 
@@ -257,6 +263,9 @@ class WeeklyScore(db.Model):
 
 class Leaderboard(db.Model):
     __tablename__ = "leaderboard"
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "week_number", name="uq_leaderboard_user_week"),
+    )
 
     leaderboard_id  = db.Column(db.Integer,    primary_key=True, autoincrement=True)
     user_id         = db.Column(db.String(20), db.ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
@@ -272,17 +281,17 @@ class Leaderboard(db.Model):
 
     def to_dict(self):
         return {
-            "user_id":        self.user_id,
-            "full_name":      self.user.full_name if self.user else None,
-            "university":     self.user.university if self.user else None,
-            "week_number":    self.week_number,
-            "portfolio_score":float(self.portfolio_score or 0),
-            "risk_score":     float(self.risk_score or 0),
-            "thesis_score":   float(self.thesis_score or 0),
-            "execution_score":float(self.execution_score or 0),
-            "strategy_score": float(self.strategy_score or 0),
-            "final_score":    float(self.final_score or 0),
-            "rank_position":  self.rank_position,
+            "user_id":         self.user_id,
+            "full_name":       self.user.full_name if self.user else None,
+            "university":      self.user.university if self.user else None,
+            "week_number":     self.week_number,
+            "portfolio_score": float(self.portfolio_score or 0),
+            "risk_score":      float(self.risk_score or 0),
+            "thesis_score":    float(self.thesis_score or 0),
+            "execution_score": float(self.execution_score or 0),
+            "strategy_score":  float(self.strategy_score or 0),
+            "final_score":     float(self.final_score or 0),
+            "rank_position":   self.rank_position,
         }
 
 

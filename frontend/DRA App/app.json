@@ -18,8 +18,7 @@
         "foregroundImage": "./src/imports/brand-icon.png",
         "backgroundColor": "#060810"
       },
-      "package": "com.ishita_ghosh.tradeiq",
-      "googleServicesFile": "./google-services.json"
+      "package": "com.ishita_ghosh.tradeiq"
     },
     "splash": {
       "image": "./src/imports/brand-icon.png",

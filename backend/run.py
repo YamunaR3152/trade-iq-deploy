@@ -1,5 +1,10 @@
-from app import create_app
 import os
+from dotenv import load_dotenv
+
+# Force load environment variables from .env file before anything else runs
+load_dotenv(override=True)
+
+from app import create_app
 
 app = create_app()
 

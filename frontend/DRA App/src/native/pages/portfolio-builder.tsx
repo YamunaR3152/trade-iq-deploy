@@ -1,6 +1,17 @@
-import { Check, Trash2, X } from "lucide-react-native";
+// frontend/DRA App/src/native/pages/portfolio-builder.tsx
+import { Check, Trash2, X, Search } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { C, font, glossary, glossaryTerms, sectorOptions } from "../constants";
 import { getPortfolioDraft, savePortfolioDraft } from "../portfolio-store";
 import { analytics, market, portfolio } from "../api";
@@ -9,7 +20,15 @@ import type { Position, PortfolioSetup, UserData } from "../types";
 import { wordCount } from "../utils";
 import { AppButton, Field, GlassCard, Pill, SectionTitle } from "../components/ui";
 
-const tagOptions = ["Earnings Play", "Macro Tailwind", "Valuation Gap", "Momentum", "Risk Hedge", "(optional)"];
+const tagOptions = [
+  "Earnings Play",
+  "Macro Tailwind",
+  "Valuation Gap",
+  "Momentum",
+  "Risk Hedge",
+  "(optional)",
+];
+
 const tableColumns = [
   { key: "ticker", label: "Ticker", width: 92 },
   { key: "name", label: "Stock", width: 190 },
@@ -84,10 +103,23 @@ function isSubmittedPosition(position: Position) {
   return position.id.startsWith("server-");
 }
 
-function OptionRow({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (value: string) => void }) {
+function OptionRow({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
   return (
     <View style={{ gap: 8 }}>
-      <Text selectable style={{ color: C.text2, fontFamily: font.medium, fontSize: 10, textTransform: "uppercase" }}>
+      <Text
+        selectable
+        style={{ color: C.text2, fontFamily: font.medium, fontSize: 10, textTransform: "uppercase" }}
+      >
         {label}
       </Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
@@ -99,24 +131,59 @@ function OptionRow({ label, options, value, onChange }: { label: string; options
   );
 }
 
-function CompactSelect({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (value: string) => void }) {
+function CompactSelect({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <View style={{ flex: 1, minWidth: 130 }}>
-      <Text selectable style={{ color: C.text2, fontFamily: font.medium, fontSize: 10, textTransform: "uppercase", marginBottom: 7 }}>
+      <Text
+        selectable
+        style={{ color: C.text2, fontFamily: font.medium, fontSize: 10, textTransform: "uppercase", marginBottom: 7 }}
+      >
         {label}
       </Text>
       <TouchableOpacity
         onPress={() => setOpen(true)}
-        style={{ minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: "rgba(255,255,255,0.04)", paddingHorizontal: 12, justifyContent: "center" }}
+        style={{
+          minHeight: 44,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: C.border,
+          backgroundColor: "rgba(255,255,255,0.04)",
+          paddingHorizontal: 12,
+          justifyContent: "center",
+        }}
       >
         <Text selectable numberOfLines={1} style={{ color: C.text0, fontFamily: font.medium, fontSize: 12 }}>
           {value}
         </Text>
       </TouchableOpacity>
       <Modal transparent animationType="fade" visible={open} onRequestClose={() => setOpen(false)}>
-        <Pressable onPress={() => setOpen(false)} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.44)", justifyContent: "center", padding: 24 }}>
-          <View style={{ borderRadius: 14, borderWidth: 1, borderColor: C.border2, backgroundColor: C.bg1, overflow: "hidden", maxWidth: 360, width: "100%", alignSelf: "center" }}>
+        <Pressable
+          onPress={() => setOpen(false)}
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.44)", justifyContent: "center", padding: 24 }}
+        >
+          <View
+            style={{
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: C.border2,
+              backgroundColor: C.bg1,
+              overflow: "hidden",
+              maxWidth: 360,
+              width: "100%",
+              alignSelf: "center",
+            }}
+          >
             {options.map((option, index) => (
               <TouchableOpacity
                 key={option}
@@ -124,9 +191,22 @@ function CompactSelect({ label, options, value, onChange }: { label: string; opt
                   onChange(option);
                   setOpen(false);
                 }}
-                style={{ paddingHorizontal: 14, paddingVertical: 13, borderBottomWidth: index < options.length - 1 ? 1 : 0, borderBottomColor: C.border, backgroundColor: value === option ? "rgba(49,230,255,0.14)" : "rgba(255,255,255,0.03)" }}
+                style={{
+                  paddingHorizontal: 14,
+                  paddingVertical: 13,
+                  borderBottomWidth: index < options.length - 1 ? 1 : 0,
+                  borderBottomColor: C.border,
+                  backgroundColor: value === option ? "rgba(49,230,255,0.14)" : "rgba(255,255,255,0.03)",
+                }}
               >
-                <Text selectable style={{ color: value === option ? C.cyan : C.text1, fontFamily: font.medium, fontSize: 13 }}>
+                <Text
+                  selectable
+                  style={{
+                    color: value === option ? C.cyan : C.text1,
+                    fontFamily: font.medium,
+                    fontSize: 13,
+                  }}
+                >
                   {option}
                 </Text>
               </TouchableOpacity>
@@ -150,13 +230,31 @@ function DraftTradesTable({
   onDelete: (id: string) => void;
 }) {
   return (
-    <View style={{ borderRadius: 12, borderWidth: 1, borderColor: C.border, overflow: "hidden", backgroundColor: "rgba(255,255,255,0.035)" }}>
+    <View
+      style={{
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: C.border,
+        overflow: "hidden",
+        backgroundColor: "rgba(255,255,255,0.035)",
+      }}
+    >
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View>
-          <View style={{ flexDirection: "row", backgroundColor: "rgba(49,230,255,0.10)", borderBottomColor: C.border, borderBottomWidth: 1 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              backgroundColor: "rgba(49,230,255,0.10)",
+              borderBottomColor: C.border,
+              borderBottomWidth: 1,
+            }}
+          >
             {tableColumns.map((column) => (
               <View key={column.key} style={{ width: column.width, paddingHorizontal: 10, paddingVertical: 10 }}>
-                <Text selectable style={{ color: C.cyan, fontFamily: font.medium, fontSize: 10, textTransform: "uppercase" }}>
+                <Text
+                  selectable
+                  style={{ color: C.cyan, fontFamily: font.medium, fontSize: 10, textTransform: "uppercase" }}
+                >
                   {column.label}
                 </Text>
               </View>
@@ -182,13 +280,21 @@ function DraftTradesTable({
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
-                  backgroundColor: selectedId === position.id ? "rgba(49,230,255,0.12)" : index % 2 === 0 ? "rgba(255,255,255,0.025)" : "rgba(255,255,255,0.052)",
+                  backgroundColor:
+                    selectedId === position.id
+                      ? "rgba(49,230,255,0.12)"
+                      : index % 2 === 0
+                      ? "rgba(255,255,255,0.025)"
+                      : "rgba(255,255,255,0.052)",
                   borderBottomColor: selectedId === position.id ? "rgba(49,230,255,0.28)" : C.border,
                   borderBottomWidth: index < positions.length - 1 ? 1 : 0,
                 }}
               >
                 {cells.map((value, cellIndex) => (
-                  <View key={`${position.id}-${cellIndex}`} style={{ width: tableColumns[cellIndex].width, paddingHorizontal: 10, paddingVertical: 11 }}>
+                  <View
+                    key={`${position.id}-${cellIndex}`}
+                    style={{ width: tableColumns[cellIndex].width, paddingHorizontal: 10, paddingVertical: 11 }}
+                  >
                     <Text
                       selectable
                       numberOfLines={2}
@@ -203,13 +309,29 @@ function DraftTradesTable({
                     </Text>
                   </View>
                 ))}
-                <View style={{ width: tableColumns[9].width, paddingHorizontal: 10, paddingVertical: 7, alignItems: "center" }}>
+                <View
+                  style={{
+                    width: tableColumns[9].width,
+                    paddingHorizontal: 10,
+                    paddingVertical: 7,
+                    alignItems: "center",
+                  }}
+                >
                   <TouchableOpacity
                     onPress={(event) => {
                       event.stopPropagation();
                       onDelete(position.id);
                     }}
-                    style={{ width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center", borderColor: "rgba(255,95,126,0.34)", borderWidth: 1, backgroundColor: "rgba(255,95,126,0.10)" }}
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 10,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderColor: "rgba(255,95,126,0.34)",
+                      borderWidth: 1,
+                      backgroundColor: "rgba(255,95,126,0.10)",
+                    }}
                   >
                     <Trash2 size={15} color={C.red} />
                   </TouchableOpacity>
@@ -223,12 +345,18 @@ function DraftTradesTable({
   );
 }
 
-function StockSearchField({
+export function StockSearchField({
   ticker,
   onSelect,
 }: {
   ticker: string;
-  onSelect: (data: { ticker: string; name: string; sector: string; buyPrice: string; currentSellPrice: string }) => void;
+  onSelect: (data: {
+    ticker: string;
+    name: string;
+    sector: string;
+    buyPrice: string;
+    currentSellPrice: string;
+  }) => void;
 }) {
   const [query, setQuery] = useState(ticker);
   const [results, setResults] = useState<StockSearchResult[]>([]);
@@ -294,459 +422,413 @@ function StockSearchField({
   };
 
   return (
-    <View style={{ gap: 4 }}>
-      <Text selectable style={{ color: C.text2, fontFamily: font.medium, fontSize: 10, textTransform: "uppercase" }}>
+    <View style={{ gap: 4, zIndex: 10 }}>
+      <Text
+        selectable
+        style={{ color: C.text2, fontFamily: font.medium, fontSize: 10, textTransform: "uppercase" }}
+      >
         Search Stock
       </Text>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <TextInput
-          value={query}
-          onChangeText={handleChange}
-          placeholder="Name or ticker — e.g. Infosys, AAPL"
-          placeholderTextColor={C.text2}
+        <View
           style={{
             flex: 1,
-            height: 50,
-            borderRadius: 14,
+            flexDirection: "row",
+            alignItems: "center",
+            borderRadius: 12,
             borderWidth: 1,
             borderColor: C.border,
-            paddingHorizontal: 14,
-            color: C.text0,
-            fontFamily: font.regular,
-            fontSize: 14,
             backgroundColor: "rgba(255,255,255,0.04)",
+            paddingHorizontal: 12,
+            height: 44,
           }}
-        />
-        {searching && <ActivityIndicator size="small" color={C.cyan} />}
+        >
+          <Search size={16} color={C.text2} style={{ marginRight: 8 }} />
+          <TextInput
+            value={query}
+            onChangeText={handleChange}
+            placeholder="Name or ticker — e.g. Infosys, AAPL"
+            placeholderTextColor={C.text2}
+            style={{
+              flex: 1,
+              color: C.text0,
+              fontFamily: font.medium,
+              fontSize: 13,
+              paddingVertical: 0,
+            }}
+          />
+          {searching ? <ActivityIndicator size="small" color={C.cyan} /> : null}
+        </View>
       </View>
+
       {searchError ? (
-        <Text selectable style={{ color: C.red, fontSize: 11, marginTop: 2 }}>{searchError}</Text>
+        <Text style={{ color: C.red, fontSize: 11, marginTop: 2 }}>{searchError}</Text>
       ) : null}
-      {showResults && results.length > 0 && (
-        <View style={{ borderRadius: 12, borderWidth: 1, borderColor: C.border, overflow: "hidden", marginTop: 2 }}>
-          {results.map((result, idx) => (
+
+      {showResults && results.length > 0 ? (
+        <View
+          style={{
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: C.border2,
+            backgroundColor: C.bg1,
+            overflow: "hidden",
+            marginTop: 4,
+            elevation: 4,
+          }}
+        >
+          {results.map((item, index) => (
             <TouchableOpacity
-              key={result.ticker}
-              onPress={() => handleSelect(result)}
+              key={item.ticker}
+              onPress={() => void handleSelect(item)}
               style={{
                 flexDirection: "row",
-                alignItems: "center",
                 justifyContent: "space-between",
-                paddingHorizontal: 14,
+                alignItems: "center",
+                paddingHorizontal: 12,
                 paddingVertical: 10,
-                backgroundColor: idx % 2 === 0 ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.055)",
-                borderBottomWidth: idx < results.length - 1 ? 1 : 0,
+                borderBottomWidth: index < results.length - 1 ? 1 : 0,
                 borderBottomColor: C.border,
+                backgroundColor: "rgba(255,255,255,0.02)",
               }}
             >
-              <View style={{ flex: 1 }}>
-                <Text selectable style={{ color: C.cyan, fontFamily: font.mono, fontSize: 13 }}>{result.ticker}</Text>
-                <Text selectable style={{ color: C.text1, fontSize: 12, marginTop: 1 }}>{result.name ?? "—"}</Text>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={{ color: C.text0, fontFamily: font.medium, fontSize: 13 }} numberOfLines={1}>
+                  {item.name}
+                </Text>
+                <Text style={{ color: C.text2, fontFamily: font.mono, fontSize: 10 }}>
+                  {item.sector || "Unclassified"}
+                </Text>
               </View>
-              <View style={{ alignItems: "flex-end" }}>
-                <Text selectable style={{ color: C.text2, fontSize: 11 }}>{result.exchange ?? ""}</Text>
-                {result.sector ? (
-                  <Text selectable style={{ color: C.text2, fontSize: 10, marginTop: 1 }}>{result.sector}</Text>
-                ) : null}
-              </View>
+              <Text style={{ color: C.cyan, fontFamily: font.mono, fontSize: 12 }}>{item.ticker}</Text>
             </TouchableOpacity>
           ))}
         </View>
-      )}
+      ) : null}
     </View>
   );
 }
 
-export function PortfolioBuilder({ userData, onSubmitSuccess }: { userData: UserData | null; onSubmitSuccess?: () => void }) {
-  const studentId = userData?.studentId || "202600000000";
+export function PortfolioBuilderPage({
+  user,
+  portfolioSetup,
+  onOpenGlossary,
+}: {
+  user: UserData;
+  portfolioSetup: PortfolioSetup;
+  onOpenGlossary?: (termKey?: string) => void;
+}) {
   const { width } = useWindowDimensions();
-  const isNarrow = width < 430;
-  const [capitalAmount, setCapitalAmount] = useState(10000);
+  const isMobile = width < 720;
+
+  const capital = portfolioSetup.totalCapital || 100000;
+  const studentId = user.userId || "student-1";
+
   const [positions, setPositions] = useState<Position[]>([]);
-  const [currentPosition, setCurrentPosition] = useState<Position>(() => makeTrade(studentId, 0, capitalAmount));
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [setup, setSetup] = useState<PortfolioSetup>({
-    studentId,
-    totalCapital: "$10,000",
-    riskAppetite: "Moderate",
-    investmentHorizon: "1 Month",
-    competitionRound: "June 2026",
-  });
-  const [activeGlossary, setActiveGlossary] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
-  const [draftStatus, setDraftStatus] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [serverMessage, setServerMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
+  // Load trades on mount
   useEffect(() => {
-    let active = true;
-    setDraftStatus("Loading saved portfolio...");
-    async function loadSavedPortfolio() {
+    async function loadData() {
+      setLoading(true);
       try {
-        const draft = await getPortfolioDraft(studentId);
-        if (!active) return;
-        if (draft && draft.positions.length > 0) {
-          setSetup(draft.setup);
-          setPositions(draft.positions);
-          setCurrentPosition(makeTrade(studentId, draft.positions.length, capitalAmount));
-          setEditingId(null);
-          setDraftStatus(`Draft restored from ${new Date(draft.updatedAt).toLocaleString()}.`);
-          return;
-        }
-
-        if (userData?.studentId) {
-          const response = await portfolio.getTrades(userData.studentId);
-          if (!active) return;
-          const savedPositions = response.trades
-            .slice()
-            .reverse()
-            .map((trade, index) => tradeToPosition(trade, index, studentId));
-          if (savedPositions.length > 0) {
-            const nextSetup = draft?.setup ?? {
-              studentId,
-              totalCapital: "$10,000",
-              riskAppetite: "Moderate",
-              investmentHorizon: "1 Month",
-              competitionRound: "June 2026",
-            };
-            setSetup(nextSetup);
-            setPositions(savedPositions);
-            setCurrentPosition(makeTrade(studentId, savedPositions.length, capitalAmount));
-            setEditingId(null);
-            setDraftStatus(`${savedPositions.length} previously submitted stock${savedPositions.length === 1 ? "" : "s"} loaded.`);
-            return;
+        const res = await portfolio.getTrades(studentId);
+        if (res.trades && res.trades.length > 0) {
+          const loaded = res.trades.map((t, idx) => tradeToPosition(t, idx, studentId));
+          setPositions(loaded);
+          setSelectedId(loaded[0].id);
+        } else {
+          // Check for draft locally
+          const draft = await getPortfolioDraft(studentId);
+          if (draft && draft.length > 0) {
+            setPositions(draft);
+            setSelectedId(draft[0].id);
+          } else {
+            const initPos = [makeTrade(studentId, 0, capital)];
+            setPositions(initPos);
+            setSelectedId(initPos[0].id);
           }
         }
-
-        if (!active) return;
-        setSetup({
-          studentId,
-          totalCapital: "$10,000",
-          riskAppetite: "Moderate",
-          investmentHorizon: "1 Month",
-          competitionRound: "June 2026",
-        });
-        setPositions([]);
-        setCurrentPosition(makeTrade(studentId, 0, capitalAmount));
-        setEditingId(null);
-        setDraftStatus("");
       } catch (err) {
-        if (!active) return;
-        setSetup({
-          studentId,
-          totalCapital: "$10,000",
-          riskAppetite: "Moderate",
-          investmentHorizon: "1 Month",
-          competitionRound: "June 2026",
-        });
-        setPositions([]);
-        setCurrentPosition(makeTrade(studentId, 0, capitalAmount));
-        setEditingId(null);
-        setDraftStatus(err instanceof Error ? `Saved stocks could not load: ${err.message}` : "Saved stocks could not load.");
+        console.warn("Failed loading portfolio trades:", err);
+        const draft = await getPortfolioDraft(studentId);
+        if (draft && draft.length > 0) {
+          setPositions(draft);
+          setSelectedId(draft[0].id);
+        } else {
+          const initPos = [makeTrade(studentId, 0, capital)];
+          setPositions(initPos);
+          setSelectedId(initPos[0].id);
+        }
+      } finally {
+        setLoading(false);
       }
     }
-    void loadSavedPortfolio();
-    return () => {
-      active = false;
-    };
-  }, [capitalAmount, studentId, userData?.studentId]);
+    void loadData();
+  }, [studentId, capital]);
 
+  // Sync draft updates locally
   useEffect(() => {
-    if (!userData?.studentId) return;
-    portfolio.getSummary(userData.studentId)
-      .then((s) => {
-        setCapitalAmount(s.total_capital);
-        setSetup((prev) => ({ ...prev, totalCapital: `$${s.total_capital.toLocaleString()}` }));
-        setCurrentPosition((prev) => {
-          if (editingId) return prev;
-          return {
-            ...prev,
-            amountInvested: `$${Math.round((s.total_capital * Number(prev.allocationPercent || 0)) / 100).toLocaleString()}`,
-          };
-        });
-      })
-      .catch(() => {});
-  }, [editingId, userData?.studentId]);
+    if (!loading && positions.length > 0) {
+      void savePortfolioDraft(studentId, positions);
+    }
+  }, [positions, loading, studentId]);
 
-  const totalAllocation = positions.reduce((sum, position) => sum + (Number(position.allocationPercent) || 0), 0);
-  const draftPositions = positions.filter((position) => !isSubmittedPosition(position));
-  const uniqueSectors = new Set(positions.map((position) => position.sector).filter(Boolean)).size;
-  const overLimit = totalAllocation > 100;
-  const meetsMin = uniqueSectors >= 3 && positions.every((position) => position.allocationPercent <= 30);
-  const colors = [C.purple, C.cyan, C.green, C.gold, C.red, C.text2];
+  const activePosition = useMemo(
+    () => positions.find((p) => p.id === selectedId) || positions[0],
+    [positions, selectedId]
+  );
 
-  const resetCurrentPosition = (nextIndex = positions.length) => {
-    setCurrentPosition(makeTrade(studentId, nextIndex, capitalAmount));
-    setEditingId(null);
+  const updateActivePosition = (patch: Partial<Position>) => {
+    if (!activePosition) return;
+    setPositions((prev) =>
+      prev.map((p) => (p.id === activePosition.id ? { ...p, ...patch } : p))
+    );
   };
 
-  const updateCurrentPosition = (field: keyof Position, value: string | number) => {
-    setCurrentPosition((position) => {
-      const next = { ...position, [field]: value };
-      if (field === "allocationPercent") next.amountInvested = `$${Math.round((capitalAmount * Number(value || 0)) / 100).toLocaleString()}`;
-      return next;
-    });
+  const handleAddTrade = () => {
+    const newPos = makeTrade(studentId, positions.length, capital);
+    setPositions((prev) => [...prev, newPos]);
+    setSelectedId(newPos.id);
   };
 
-  const selectPositionForEditing = (position: Position) => {
-    setCurrentPosition(position);
-    setEditingId(position.id);
-    setDraftStatus(`${position.stockTicker || "Selected stock"} loaded for editing.`);
-  };
-
-  const removePosition = async (id: string) => {
-    const nextPositions = positions.filter((position) => position.id !== id);
-    setPositions(nextPositions);
-    if (editingId === id) resetCurrentPosition(nextPositions.length);
-    const draft = await savePortfolioDraft(studentId, setup, nextPositions);
-    setSetup(draft.setup);
-    setPositions(draft.positions);
-    setDraftStatus(`Stock removed from the draft table. ${draft.positions.length} saved stock${draft.positions.length === 1 ? "" : "s"} remaining.`);
-  };
-
-  const saveDraft = async () => {
-    const hasCurrentStock = Boolean(currentPosition.stockTicker.trim());
-    const normalizedCurrent: Position = {
-      ...currentPosition,
-      id: editingId ?? currentPosition.id,
-      studentId,
-      addedBy: currentPosition.addedBy || studentId,
-      tradeId: editingId ? currentPosition.tradeId : `TRD${String(positions.length + 1).padStart(6, "0")}`,
-    };
-    const nextPositions = hasCurrentStock
-      ? editingId
-        ? positions.map((position) => (position.id === editingId ? normalizedCurrent : position))
-        : [...positions, normalizedCurrent]
-      : positions;
-
-    const draft = await savePortfolioDraft(studentId, setup, nextPositions);
-    setSetup(draft.setup);
-    setPositions(draft.positions);
-    resetCurrentPosition(draft.positions.length);
-    setDraftStatus(hasCurrentStock ? "Stock saved to the draft table. The form is ready for the next stock." : "Draft saved.");
-  };
-
-  async function submitToBackend() {
-    if (!userData?.studentId) {
-      setDraftStatus("Not logged in.");
+  const handleDeleteTrade = (id: string) => {
+    if (positions.length <= 1) {
+      setErrorMessage("At least one trade is required in your portfolio.");
       return;
     }
-    setDraftStatus("Submitting trades to server...");
-    let successCount = 0;
-    try {
-      if (draftPositions.length === 0) {
-        setDraftStatus("No new draft stocks to submit. Previously submitted stocks are already saved.");
-        return;
-      }
-      if (overLimit) {
-        setDraftStatus("Total allocation exceeds 100%. Reduce position weights before submitting.");
-        return;
-      }
-      if (!meetsMin) {
-        setDraftStatus("Portfolio must include at least 3 sectors and keep every asset at or below 30% before submitting.");
-        return;
-      }
-
-      for (const position of draftPositions) {
-        const enteredPrice = parseFloat(position.buyPrice.replace(/[^0-9.]/g, ""));
-        const rawAmount = parseFloat(position.amountInvested.replace(/[^0-9.]/g, ""));
-        const rawPrice = enteredPrice > 0 ? enteredPrice : 1;
-        const quantity =
-          rawPrice > 0 && rawAmount > 0 ? Math.max(1, Math.round(rawAmount / rawPrice)) : 1;
-
-        await portfolio.executeTrade({
-          stock_ticker: position.stockTicker,
-          stock_name: position.stockName || position.stockTicker,
-          sector: position.sector || undefined,
-          trade_type: position.tradeType === "Buy" ? "BUY" : "SELL",
-          quantity,
-          buy_price: rawPrice,
-          current_sell_price: parseFloat(position.currentSellPrice.replace(/[^0-9.]/g, "")) || rawPrice,
-          tag1: position.tag1 === "(optional)" ? undefined : position.tag1 || undefined,
-          tag2: position.tag2 === "(optional)" ? undefined : position.tag2 || undefined,
-          tag3: position.tag3 === "(optional)" ? undefined : position.tag3 || undefined,
-          thesis: position.thesis || undefined,
-          amount_invested: rawAmount > 0 ? rawAmount : undefined,
-        });
-        successCount++;
-      }
-      try {
-        await analytics.computeScores(userData.studentId);
-        setDraftStatus(`${successCount}/${draftPositions.length} trade(s) submitted successfully. Score and leaderboard updated.`);
-      } catch {
-        setDraftStatus(`${successCount}/${draftPositions.length} trade(s) submitted successfully. Score will update after the next scoring run.`);
-      }
-      await savePortfolioDraft(studentId, setup, []);
-      const response = await portfolio.getTrades(userData.studentId);
-      const savedPositions = response.trades
-        .slice()
-        .reverse()
-        .map((trade, index) => tradeToPosition(trade, index, studentId));
-      setPositions(savedPositions);
-      resetCurrentPosition(savedPositions.length);
-      portfolio.getSummary(userData.studentId)
-        .then((s) => setCapitalAmount(s.total_capital))
-        .catch(() => {});
-      setSubmitted(true);
-      onSubmitSuccess?.();
-    } catch (err) {
-      setDraftStatus(
-        `${successCount}/${draftPositions.length} submitted. Error: ${err instanceof Error ? err.message : "Submission failed"}`
-      );
+    const filtered = positions.filter((p) => p.id !== id);
+    setPositions(filtered);
+    if (selectedId === id) {
+      setSelectedId(filtered[0]?.id || null);
     }
+  };
+  const handleExecuteTrade = async () => {
+    if (!activePosition) return;
+
+    if (!activePosition.stockTicker) {
+      setErrorMessage("Please select or search for a valid stock ticker first.");
+      return;
+    }
+
+    // §10.5 Thesis validation check
+    const trimmedThesis = activePosition.thesis ? activePosition.thesis.trim() : "";
+    if (trimmedThesis.length > 0 && trimmedThesis.length < 20) {
+      setErrorMessage("Thesis must be at least 20 characters, or left blank.");
+      return;
+    }
+
+    const buyPrice = parseFloat(activePosition.buyPrice) || 0;
+    const currentSellPrice = parseFloat(activePosition.currentSellPrice) || buyPrice;
+    const allocPct = Number(activePosition.allocationPercent) || 0;
+    const investedAmt = (capital * allocPct) / 100;
+
+    if (buyPrice <= 0) {
+      setErrorMessage("Please enter a valid buy price before executing.");
+      return;
+    }
+
+    // Round shares to whole numbers (prevent fractional truncation divergence)
+    const qty = Math.max(1, Math.round(investedAmt / buyPrice));
+    const actualInvestedAmt = qty * buyPrice;
+
+    setSubmitting(true);
+    setServerMessage("");
+    setErrorMessage("");
+
+    try {
+      const res = await portfolio.executeTrade({
+        stock_ticker: activePosition.stockTicker,
+        stock_name: activePosition.stockName,
+        sector: activePosition.sector,
+        trade_type: activePosition.tradeType === "Sell" ? "SELL" : "BUY",
+        quantity: qty,
+        buy_price: buyPrice,
+        current_sell_price: currentSellPrice,
+        tag1: activePosition.tag1,
+        tag2: activePosition.tag2,
+        tag3: activePosition.tag3,
+        thesis: trimmedThesis || undefined,
+        amount_invested: actualInvestedAmt,
+      });
+
+      const successDetail = `${res.message || "Trade executed successfully!"} — ${qty} share${
+        qty === 1 ? "" : "s"
+      } at $${buyPrice.toFixed(2)} (~$${actualInvestedAmt.toLocaleString(undefined, {
+        maximumFractionDigits: 2,
+      })} invested).`;
+
+      setServerMessage(successDetail);
+
+      await analytics.computeScores(studentId).catch(() => null);
+
+      const tradesRes = await portfolio.getTrades(studentId);
+      if (tradesRes.trades) {
+        const loaded = tradesRes.trades.map((t, idx) => tradeToPosition(t, idx, studentId));
+        setPositions(loaded);
+        setSelectedId(loaded[0]?.id || null);
+      }
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Trade execution failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 32 }}>
+        <ActivityIndicator size="large" color={C.cyan} />
+        <Text style={{ color: C.text2, fontFamily: font.medium, marginTop: 12 }}>
+          Loading Portfolio Builder...
+        </Text>
+      </View>
+    );
   }
 
-  const statusText = useMemo(() => {
-    if (overLimit) return "Total allocation exceeds 100%. Reduce position weights.";
-    if (!meetsMin) return `Need min 3 sectors and max 30% per asset. Currently ${uniqueSectors} sectors.`;
-    return "Meets diversification requirements.";
-  }, [meetsMin, overLimit, uniqueSectors]);
-
   return (
-    <View style={{ gap: 16 }}>
-      {submitted ? (
-        <View style={{ padding: 14, borderRadius: 16, backgroundColor: "rgba(30,230,163,0.12)", borderColor: "rgba(30,230,163,0.30)", borderWidth: 1, flexDirection: "row", gap: 10, alignItems: "center" }}>
-          <Check size={18} color={C.green} />
-          <Text selectable style={{ color: C.green, fontFamily: font.medium, fontSize: 13 }}>
-            Portfolio setup and trade log saved
-          </Text>
-        </View>
-      ) : null}
-      {draftStatus ? (
-        <View style={{ padding: 12, borderRadius: 14, backgroundColor: "rgba(49,230,255,0.08)", borderColor: "rgba(49,230,255,0.22)", borderWidth: 1 }}>
-          <Text selectable style={{ color: C.cyan, fontFamily: font.medium, fontSize: 12, lineHeight: 17 }}>
-            {draftStatus}
-          </Text>
+    <ScrollView contentContainerStyle={{ padding: isMobile ? 16 : 28, gap: 20 }}>
+      <SectionTitle title="Portfolio Builder" subtitle="Construct, execute, and refine your trade positions" />
+
+      {serverMessage ? (
+        <View style={{ padding: 12, borderRadius: 10, backgroundColor: "rgba(49,230,255,0.15)", borderWidth: 1, borderColor: C.cyan }}>
+          <Text style={{ color: C.cyan, fontFamily: font.medium, fontSize: 13 }}>{serverMessage}</Text>
         </View>
       ) : null}
 
-      <View>
-        <Text selectable style={{ color: C.text0, fontFamily: font.heading, fontSize: 29, textTransform: "uppercase" }}>
-          Portfolio Setup
-        </Text>
-      </View>
-
-      
-      <GlassCard style={{ padding: 16, gap: 14, backgroundColor: "rgba(8,35,33,0.82)", borderColor: overLimit ? "rgba(255,95,126,0.34)" : "rgba(30,230,163,0.30)" }} accent={overLimit ? C.red : C.green}>
-        <SectionTitle title="Allocation" accent={overLimit ? C.red : C.green} right={<Text selectable style={{ color: overLimit ? C.red : C.green, fontFamily: font.mono, fontSize: 16 }}>{totalAllocation}%</Text>} />
-        <Text selectable style={{ color: C.text2, fontSize: 12, lineHeight: 17 }}>
-          Keep total allocation within 100%, use at least 3 sectors, and cap each asset at 30%.
-        </Text>
-        <View style={{ flexDirection: "row", height: 14, borderRadius: 14, overflow: "hidden", gap: 2 }}>
-          {positions.map((position, index) => (
-            <View key={position.id} style={{ width: `${Math.min(position.allocationPercent, 30)}%`, minWidth: position.allocationPercent > 0 ? 2 : 0, backgroundColor: colors[index % colors.length] }} />
-          ))}
+      {errorMessage ? (
+        <View style={{ padding: 12, borderRadius: 10, backgroundColor: "rgba(255,95,126,0.15)", borderWidth: 1, borderColor: C.red }}>
+          <Text style={{ color: C.red, fontFamily: font.medium, fontSize: 13 }}>{errorMessage}</Text>
         </View>
-        <Text selectable style={{ color: meetsMin && !overLimit ? C.green : C.red, fontFamily: font.medium, fontSize: 12 }}>
-          {statusText}
-        </Text>
-      </GlassCard>
+      ) : null}
 
-      <GlassCard style={{ padding: 16, gap: 12, backgroundColor: "rgba(10,16,32,0.94)", borderColor: "rgba(49,230,255,0.24)" }} accent={C.cyan}>
-        <SectionTitle
-          title={editingId ? "Edit Stock" : "Select Stock"}
-          accent={C.cyan}
-          right={<TouchableOpacity onPress={() => resetCurrentPosition(positions.length)} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.06)", borderColor: C.border2, borderWidth: 1 }}>
-            <X size={14} color={C.text1} />
-            <Text selectable style={{ color: C.text1, fontFamily: font.medium, fontSize: 12 }}>Clear</Text>
-          </TouchableOpacity>}
+      <GlassCard style={{ gap: 16 }}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <Text style={{ color: C.text0, fontFamily: font.semibold, fontSize: 16 }}>Positions Overview</Text>
+          <AppButton title="+ Add Position" onPress={handleAddTrade} variant="secondary" />
+        </View>
+
+        <DraftTradesTable
+          positions={positions}
+          selectedId={selectedId}
+          onSelect={(p) => setSelectedId(p.id)}
+          onDelete={handleDeleteTrade}
         />
-        <Text selectable style={{ color: C.text2, fontSize: 12, lineHeight: 17 }}>
-          Fill one stock at a time. Save Draft records it in the table below, clears the form, and lets you add the next stock.
-        </Text>
-        <View style={{ gap: 10, padding: 12, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.045)", borderColor: C.border, borderWidth: 1, borderTopWidth: 3, borderTopColor: editingId ? C.gold : C.cyan }}>
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <View style={{ flex: 1 }}>
-              <Field label="Trade ID" value={currentPosition.tradeId} onChangeText={() => undefined} placeholder="TRD000001" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Field label="Trade Date" value={currentPosition.tradeDate} onChangeText={(value) => updateCurrentPosition("tradeDate", value)} placeholder="01/06/2026" />
-            </View>
-          </View>
-          <View style={{ flexDirection: isNarrow ? "column" : "row", gap: 10, alignItems: "flex-start" }}>
-            <View style={{ flex: 1, width: isNarrow ? "100%" : undefined }}>
-              <StockSearchField
-                ticker={currentPosition.stockTicker}
-                onSelect={(data) => {
-                  setCurrentPosition((position) => ({
-                    ...position,
-                    stockTicker: data.ticker,
-                    stockName: data.name,
-                    sector: data.sector,
-                    buyPrice: data.buyPrice,
-                    currentSellPrice: data.currentSellPrice,
-                  }));
-                }}
-              />
-            </View>
-            <View style={{ flex: 1, width: isNarrow ? "100%" : undefined }}>
-              <Field label="Stock Name" value={currentPosition.stockName} onChangeText={(value) => updateCurrentPosition("stockName", value)} placeholder="Apple Inc" />
-            </View>
-          </View>
-          <OptionRow label="Sector" options={sectorOptions} value={currentPosition.sector} onChange={(value) => updateCurrentPosition("sector", value)} />
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <View style={{ flex: 1 }}>
-              <Field label="Allocation %" value={String(currentPosition.allocationPercent)} onChangeText={(value) => updateCurrentPosition("allocationPercent", Number(value.replace(/\D/g, "").slice(0, 3)) || 0)} placeholder="20" keyboardType="numeric" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Field label="Amount Invested" value={currentPosition.amountInvested} onChangeText={(value) => updateCurrentPosition("amountInvested", value)} placeholder="$2,000" />
-            </View>
-          </View>
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <View style={{ flex: 1 }}>
-              <Field label="Buy Price" value={currentPosition.buyPrice} onChangeText={(value) => updateCurrentPosition("buyPrice", value)} placeholder="$189.50" keyboardType="decimal-pad" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Field label="Current / Sell Price" value={currentPosition.currentSellPrice} onChangeText={(value) => updateCurrentPosition("currentSellPrice", value)} placeholder="$201.00" keyboardType="decimal-pad" />
-            </View>
-          </View>
-          <OptionRow label="Trade Type" options={["Buy", "Sell"]} value={currentPosition.tradeType} onChange={(value) => updateCurrentPosition("tradeType", value)} />
-          <View style={{ flexDirection: isNarrow ? "column" : "row", gap: 10 }}>
-            <CompactSelect label="Tag 1" options={tagOptions} value={currentPosition.tag1} onChange={(value) => updateCurrentPosition("tag1", value)} />
-            <CompactSelect label="Tag 2" options={tagOptions} value={currentPosition.tag2} onChange={(value) => updateCurrentPosition("tag2", value)} />
-            <CompactSelect label="Tag 3" options={tagOptions} value={currentPosition.tag3} onChange={(value) => updateCurrentPosition("tag3", value)} />
-          </View>
-          <Field label="Thesis" value={currentPosition.thesis} onChangeText={(value) => updateCurrentPosition("thesis", value)} placeholder="Max 50 words" multiline />
-          <Text selectable style={{ color: wordCount(currentPosition.thesis) <= 50 ? C.text2 : C.red, fontSize: 10, alignSelf: "flex-end" }}>
-            {wordCount(currentPosition.thesis)}/50 words
-          </Text>
-        </View>
       </GlassCard>
 
-      {activeGlossary && glossary[activeGlossary] ? (
-        <GlassCard style={{ padding: 16, gap: 10, borderColor: "rgba(49,230,255,0.35)" }} accent={C.cyan}>
-          <SectionTitle title={glossary[activeGlossary].term} accent={C.cyan} />
-          <Text selectable style={{ color: C.text1, fontSize: 12, lineHeight: 19 }}>{glossary[activeGlossary].def}</Text>
-          {glossary[activeGlossary].formula ? (
-            <Text selectable style={{ color: C.purple, fontFamily: font.mono, fontSize: 11, lineHeight: 17, backgroundColor: C.bg3, padding: 9, borderRadius: 8 }}>
-              {glossary[activeGlossary].formula}
-            </Text>
-          ) : null}
+      {activePosition ? (
+        <GlassCard style={{ gap: 18 }}>
+          <Text style={{ color: C.cyan, fontFamily: font.semibold, fontSize: 15 }}>
+            Edit Position: {activePosition.stockTicker || "New Trade"}
+          </Text>
+
+          <StockSearchField
+            ticker={activePosition.stockTicker}
+            onSelect={(data) => {
+              updateActivePosition({
+                stockTicker: data.ticker,
+                stockName: data.name,
+                sector: data.sector,
+                buyPrice: data.buyPrice,
+                currentSellPrice: data.currentSellPrice,
+              });
+            }}
+          />
+
+          <View style={{ flexDirection: isMobile ? "column" : "row", gap: 12 }}>
+            <CompactSelect
+              label="Sector"
+              options={sectorOptions}
+              value={activePosition.sector}
+              onChange={(sector) => updateActivePosition({ sector })}
+            />
+            <CompactSelect
+              label="Type"
+              options={["Buy", "Sell"]}
+              value={activePosition.tradeType}
+              onChange={(tradeType) => updateActivePosition({ tradeType: tradeType as "Buy" | "Sell" })}
+            />
+          </View>
+
+          <View style={{ flexDirection: isMobile ? "column" : "row", gap: 12 }}>
+            <Field
+              label="Allocation (%)"
+              value={String(activePosition.allocationPercent)}
+              onChangeText={(val) => {
+                const num = parseFloat(val) || 0;
+                updateActivePosition({
+                  allocationPercent: num,
+                  amountInvested: money((capital * num) / 100),
+                });
+              }}
+              keyboardType="numeric"
+            />
+            <Field
+              label="Buy Price ($)"
+              value={activePosition.buyPrice}
+              onChangeText={(buyPrice) => updateActivePosition({ buyPrice })}
+              keyboardType="numeric"
+            />
+            <Field
+              label="Current/Target Price ($)"
+              value={activePosition.currentSellPrice}
+              onChangeText={(currentSellPrice) => updateActivePosition({ currentSellPrice })}
+              keyboardType="numeric"
+            />
+          </View>
+
+          <OptionRow
+            label="Primary Tag"
+            options={tagOptions}
+            value={activePosition.tag1}
+            onChange={(tag1) => updateActivePosition({ tag1 })}
+          />
+
+          <View style={{ gap: 6 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+              <Text style={{ color: C.text2, fontFamily: font.medium, fontSize: 10, textTransform: "uppercase" }}>
+                Investment Thesis
+              </Text>
+              <Text style={{ color: C.text2, fontFamily: font.mono, fontSize: 10 }}>
+                Words: {wordCount(activePosition.thesis)}
+              </Text>
+            </View>
+            <TextInput
+              multiline
+              numberOfLines={4}
+              value={activePosition.thesis}
+              onChangeText={(thesis) => updateActivePosition({ thesis })}
+              placeholder="Explain the rationale behind this position..."
+              placeholderTextColor={C.text2}
+              style={{
+                minHeight: 88,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: C.border,
+                backgroundColor: "rgba(255,255,255,0.04)",
+                padding: 12,
+                color: C.text0,
+                fontFamily: font.regular,
+                fontSize: 13,
+                textAlignVertical: "top",
+              }}
+            />
+          </View>
+
+          <View style={{ marginTop: 8 }}>
+            <AppButton
+              title={submitting ? "Executing Trade..." : "Execute & Save Position"}
+              onPress={() => void handleExecuteTrade()}
+              disabled={submitting}
+            />
+          </View>
         </GlassCard>
       ) : null}
-
-      <GlassCard style={{ padding: 16, gap: 12 }} accent={C.gold}>
-        <SectionTitle title="Concept Library" accent={C.gold} />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
-          {glossaryTerms.map((term) => {
-            const active = activeGlossary === term.key;
-            return (
-              <TouchableOpacity key={term.label} disabled={!term.key} onPress={() => setActiveGlossary(active ? null : term.key)} style={{ paddingHorizontal: 13, paddingVertical: 9, borderRadius: 999, borderColor: `${term.color}55`, borderWidth: 1, backgroundColor: active ? `${term.color}24` : `${term.color}12`, opacity: term.key ? 1 : 0.72 }}>
-                <Text selectable style={{ color: term.color, fontFamily: font.medium, fontSize: 12 }}>{term.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </GlassCard>
-
-      <View style={{ flexDirection: isNarrow ? "column" : "row", gap: 10 }}>
-        <View style={{ flex: 1 }}>
-          <AppButton label={editingId ? "Update Draft" : "Save Draft"} onPress={() => void saveDraft()} variant="ghost" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <AppButton label="Submit" onPress={() => {
-            void submitToBackend();
-          }} disabled={draftPositions.length === 0 || overLimit || !meetsMin} />
-        </View>
-      </View>
-    </View>
+    </ScrollView>
   );
 }

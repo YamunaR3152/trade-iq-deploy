@@ -1,3 +1,4 @@
+// this is frontend/DRA App/src/native/pages/leaderboard.tsx
 import { useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { C, font } from "../constants";
@@ -214,7 +215,6 @@ export function Leaderboard({ studentId }: { studentId?: string }) {
                       </View>
                       <Text selectable style={{ color: C.text2, fontSize: 11, marginTop: 1 }}>
                         {entry.university ?? "—"}
-                        {entry.team_name ? `  ·  ${entry.team_name}` : ""}
                       </Text>
                     </View>
 

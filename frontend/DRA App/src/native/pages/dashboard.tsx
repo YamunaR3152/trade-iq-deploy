@@ -218,6 +218,12 @@ export function Dashboard({ userName, studentId }: { userName: string; studentId
       try {
         await portfolio.deleteHolding(holding.ticker);
       } catch {
+        // Generate idempotency key for fallback sell trade
+        const idempotencyKey =
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `trade-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
         await portfolio.executeTrade({
           stock_ticker: holding.ticker,
           stock_name: holding.name,
@@ -226,6 +232,7 @@ export function Dashboard({ userName, studentId }: { userName: string; studentId
           quantity: Math.max(1, Math.floor(holding.quantity)),
           current_sell_price: holding.currentPrice,
           amount_invested: holding.currentPrice * holding.quantity,
+          idempotency_key: idempotencyKey,
         });
       }
       setActiveHoldings((items) => items.filter((item) => item.ticker !== holding.ticker));
@@ -348,16 +355,14 @@ export function Dashboard({ userName, studentId }: { userName: string; studentId
       ) : null}
 
       {tab === "overview" ? (
-        <>
-          <GlassCard style={{ padding: 16 }} accent={C.cyan}>
-            <SectionTitle title="Portfolio Overview" accent={C.cyan} />
-            <LineChart perfData={chartPerf} benchmarkData={chartBench} />
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 18 }}>
-              <Legend color={C.cyan} label="Portfolio" />
-              <Legend color={C.text2} label="Benchmark" />
-            </View>
-          </GlassCard>
-        </>
+        <GlassCard style={{ padding: 16 }} accent={C.cyan}>
+          <SectionTitle title="Portfolio Overview" accent={C.cyan} />
+          <LineChart perfData={chartPerf} benchmarkData={chartBench} />
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 18 }}>
+            <Legend color={C.cyan} label="Portfolio" />
+            <Legend color={C.text2} label="Benchmark" />
+          </View>
+        </GlassCard>
       ) : null}
 
       {tab === "allocation" && summary ? (
@@ -371,11 +376,12 @@ export function Dashboard({ userName, studentId }: { userName: string; studentId
       {tab === "market" ? (
         <GlassCard style={{ padding: 16, gap: 8 }} accent={C.cyan}>
           {(() => {
-            const indian = marketIndices.filter((idx) => TRENDING_TICKERS.includes(idx.ticker));
-            if (indian.length === 0) {
+            const indices = marketIndices.filter((idx) => INDIAN_TICKERS.includes(idx.ticker));
+            const displayList = indices.length > 0 ? indices : marketIndices;
+            if (displayList.length === 0) {
               return <Text style={{ color: C.text2, fontSize: 12 }}>Loading indices…</Text>;
             }
-            return indian.map((idx) => (
+            return displayList.map((idx) => (
               <View
                 key={idx.ticker}
                 style={{

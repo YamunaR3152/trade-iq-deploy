@@ -188,7 +188,7 @@ Usually means `DB_HOST` is wrong or `backend/.env` is missing.
 # Find what's using the port
 lsof -i :5000
 lsof -i :8081
-lsof -i :3306
+lsof -i :3307
 ```
 Stop the conflicting process or change the host port in `docker-compose.yml`.
 

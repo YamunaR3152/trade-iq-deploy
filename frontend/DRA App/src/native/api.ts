@@ -1,16 +1,12 @@
-const DEFAULT_API_BASE = "https://trade-iq-deploy-production.up.railway.app";
-const configuredApiBase = process.env.EXPO_PUBLIC_API_URL;
-const ENV_API_BASE = (configuredApiBase || DEFAULT_API_BASE).replace(/\/+$/, "");
-const isLocalWeb =
-  typeof window !== "undefined" &&
-  ["localhost", "127.0.0.1"].includes(window.location.hostname);
-const API_BASES = isLocalWeb && !configuredApiBase ? ["http://localhost:5000"] : [ENV_API_BASE];
-console.log("API BASES =", API_BASES);
+// frontend/DRA App/src/native/api.ts
+
+const LOCAL_API_BASE = process.env.EXPO_PUBLIC_API_URL || "https://trade-iq-deploy.onrender.com";
+const API_BASES = [LOCAL_API_BASE];
+
 // ── Token storage ──────────────────────────────────────────────────────────────
 const TOKEN_KEY = "dra.jwtToken";
 
 // In-memory fallback for React Native (no window.localStorage)
-
 let _memToken: string | null = null;
 let unauthorizedHandler: (() => void) | null = null;
 
@@ -19,40 +15,48 @@ export function setUnauthorizedHandler(handler: (() => void) | null): void {
 }
 
 export function getToken(): string | null {
-  if (typeof window !== "undefined" && window.localStorage) {
-    return window.localStorage.getItem(TOKEN_KEY);
+  if (typeof window !== "undefined" && window.sessionStorage) {
+    return window.sessionStorage.getItem(TOKEN_KEY);
   }
   return _memToken;
 }
 
 export function setToken(token: string): void {
   _memToken = token;
-  if (typeof window !== "undefined" && window.localStorage) {
-    window.localStorage.setItem(TOKEN_KEY, token);
+  if (typeof window !== "undefined" && window.sessionStorage) {
+    window.sessionStorage.setItem(TOKEN_KEY, token);
   }
 }
 
 export function clearToken(): void {
   _memToken = null;
-  if (typeof window !== "undefined" && window.localStorage) {
-    window.localStorage.removeItem(TOKEN_KEY);
+  if (typeof window !== "undefined" && window.sessionStorage) {
+    window.sessionStorage.removeItem(TOKEN_KEY);
   }
 }
 
 function isInvalidTokenResponse(status: number, body: string): boolean {
   if (status !== 401 && status !== 422) return false;
+
+  // Safely check JSON body or string contents
   try {
-    const parsed = JSON.parse(body) as { msg?: string };
+    const parsed = JSON.parse(body) as { msg?: string; detail?: string; message?: string };
+    const msg = parsed.msg || parsed.detail || parsed.message || "";
     return [
       "Token has expired",
       "Signature verification failed",
       "Not enough segments",
-    ].includes(parsed.msg ?? "");
+      "Invalid token",
+      "Could not validate credentials",
+      "unauthorized"
+    ].some((term) => msg.toLowerCase().includes(term.toLowerCase()));
   } catch {
+    const lowerBody = body.toLowerCase();
     return (
-      body.includes("Token has expired") ||
-      body.includes("Signature verification failed") ||
-      body.includes("Not enough segments")
+      lowerBody.includes("token has expired") ||
+      lowerBody.includes("signature verification failed") ||
+      lowerBody.includes("not enough segments") ||
+      lowerBody.includes("invalid token")
     );
   }
 }
@@ -78,19 +82,13 @@ async function apiFetch<T>(
   for (const base of API_BASES) {
     const url = `${base}${path}`;
 
-    console.log("API URL =", url);
-
     try {
       const res = await fetch(url, {
         ...options,
         headers,
       });
 
-      console.log("STATUS =", res.status);
-
       const text = await res.text();
-
-      console.log("BODY =", text);
 
       if (!res.ok) {
         if (isInvalidTokenResponse(res.status, text)) {
@@ -98,26 +96,50 @@ async function apiFetch<T>(
           unauthorizedHandler?.();
           throw new Error("Your session has expired. Please sign in again.");
         }
-        throw new Error(text);
+
+        // Try extracting formatted error message from backend JSON
+        let errorMessage = text;
+        try {
+          const parsedErr = JSON.parse(text);
+          errorMessage = parsedErr.error || parsedErr.message || parsedErr.msg || parsedErr.detail || text;
+        } catch {
+          /* Raw text fallback if backend returned HTML or 502/504 gateway error */
+        }
+
+        throw new Error(errorMessage || `Request failed with status ${res.status}`);
       }
 
-      return JSON.parse(text);
+      // Handle 204 / empty responses safely
+      if (!text || text.trim() === "") {
+        return {} as T;
+      }
+
+      // Safe JSON parsing
+      try {
+        return JSON.parse(text);
+      } catch {
+        throw new Error("Received invalid JSON response from server.");
+      }
 
     } catch (err) {
-      console.log("FETCH ERROR =", err);
+      // Check for generic network/fetch failures across platforms (iOS, Android, Web)
+      lastNetworkError = err;
 
-      if (err instanceof TypeError && err.message === "Failed to fetch") {
-        lastNetworkError = err;
-        continue;
+      // Rethrow auth failure immediately
+      if (err instanceof Error && err.message.includes("session has expired")) {
+        throw err;
       }
 
-      throw err;
+      // Retry next URL in API_BASES loop for network connection issues
+      continue;
     }
   }
 
-  throw new Error(
-    `Could not connect to the TradeIQ backend. Tried: ${API_BASES.join(", ")}.`
-  );
+  throw lastNetworkError instanceof Error
+    ? lastNetworkError
+    : new Error(
+        `Could not connect to the TradeIQ backend. Tried: ${API_BASES.join(", ")}.`
+      );
 }
 
 // ── Auth ───────────────────────────────────────────────────────────────────────
@@ -126,15 +148,11 @@ export type BackendUser = {
   full_name: string;
   email: string;
   university: string | null;
-  course: string | null;
   year_of_study: number | null;
-  participation_type: string | null;
-  team_name: string | null;
   role: string;
 };
 
 type AuthResponse = { message: string; user: BackendUser; token: string };
-type GoogleAuthResponse = AuthResponse & { is_new_user: boolean };
 
 export const auth = {
   register(payload: {
@@ -145,10 +163,7 @@ export const auth = {
     date_of_birth?: string;
     phone_number?: string;
     university?: string;
-    course?: string;
     year_of_study?: number;
-    participation_type?: string;
-    team_name?: string;
   }): Promise<AuthResponse> {
     return apiFetch<AuthResponse>("/auth/register", {
       method: "POST",
@@ -160,13 +175,6 @@ export const auth = {
     return apiFetch<AuthResponse>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
-    });
-  },
-
-  google(idToken: string): Promise<GoogleAuthResponse> {
-    return apiFetch<GoogleAuthResponse>("/auth/google", {
-      method: "POST",
-      body: JSON.stringify({ id_token: idToken }),
     });
   },
 };
@@ -181,6 +189,7 @@ export type PortfolioSummary = {
   total_pnl: number;
   total_return_pct: number;
   holdings_count: number;
+  prices_stale?: boolean; // True when any price was served from fallback
 };
 
 export type BackendTrade = {
@@ -215,7 +224,7 @@ export const portfolio = {
     return apiFetch(`/portfolio/holdings/${userId}`);
   },
 
-  deleteHolding(ticker: string): Promise<{ message: string; stock_ticker: string; cash_balance: number }> {
+  deleteHolding(ticker: string): Promise<{ message: string; stock_ticker: string; cash_balance: number; cash_credit?: number }> {
     return apiFetch(`/portfolio/holding/${encodeURIComponent(ticker)}`, { method: "DELETE" });
   },
 
@@ -232,7 +241,7 @@ export const portfolio = {
     tag3?: string;
     thesis?: string;
     amount_invested?: number;
-  }): Promise<{ message: string; trade: BackendTrade; cash_balance: number }> {
+  }): Promise<{ message: string; trade_id?: string; trade: BackendTrade; cash_balance: number }> {
     return apiFetch("/portfolio/trade", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -241,7 +250,7 @@ export const portfolio = {
 };
 
 // ── Market ─────────────────────────────────────────────────────────────────────
-export type MarketPrice = { ticker: string; price: number };
+export type MarketPrice = { ticker: string; price: number; is_stale?: boolean; source?: string };
 
 export type StockSearchResult = {
   ticker: string;
@@ -261,7 +270,7 @@ export type MarketIndex = {
 
 export const market = {
   getPrice(ticker: string): Promise<MarketPrice> {
-    return apiFetch<MarketPrice>(`/market/price/${ticker}`);
+    return apiFetch<MarketPrice>(`/market/price/${encodeURIComponent(ticker)}`);
   },
 
   search(query: string): Promise<{ results: StockSearchResult[] }> {
@@ -272,8 +281,8 @@ export const market = {
     return apiFetch<{ indices: MarketIndex[] }>("/market/indices");
   },
 
-  getBenchmark(start: string, end: string): Promise<{ benchmark: { Date: string; Close: number }[] }> {
-    return apiFetch<{ benchmark: { Date: string; Close: number }[] }>(
+  getBenchmark(start: string, end: string): Promise<{ benchmark: { Date: string; Close: number; Daily_Return?: number }[] }> {
+    return apiFetch<{ benchmark: { Date: string; Close: number; Daily_Return?: number }[] }>(
       `/market/benchmark?start=${start}&end=${end}`
     );
   },
@@ -284,7 +293,6 @@ export type BackendLeaderboardEntry = {
   user_id: string;
   full_name: string | null;
   university: string | null;
-  team_name?: string | null;
   week_number: number | null;
   portfolio_score: number;
   risk_score: number;
@@ -365,10 +373,16 @@ export type BackendHolding = {
   amount_invested?: number;
   thesis?: string | null;
   latest_trade_id?: string | null;
+  price_stale?: boolean; // True if this holding's price is stale
 };
 
 export const analytics = {
-  getLeaderboard(week?: number): Promise<{ week: number | null; count: number; entries: BackendLeaderboardEntry[] }> {
+  getLeaderboard(week?: number): Promise<{
+    week: number | null;
+    count: number;
+    entries: BackendLeaderboardEntry[];
+    last_refreshed?: number | null;
+  }> {
     const qs = week != null ? `?week=${week}` : "";
     return apiFetch(`/analytics/leaderboard${qs}`);
   },
@@ -384,7 +398,7 @@ export const analytics = {
     return apiFetch(`/analytics/scores/${userId}`);
   },
 
-  computeScores(userId: string): Promise<{ user_id: string; week_number: number; metrics: BackendScoreMetrics; weekly_score: BackendWeeklyScore | null }> {
+  computeScores(userId: string): Promise<{ message: string; user_id: string; week_number: number; metrics: BackendScoreMetrics; weekly_score: BackendWeeklyScore | null }> {
     return apiFetch(`/analytics/compute/${userId}`, { method: "POST" });
   },
 };

@@ -1,3 +1,4 @@
+// this is frontend/DRA App/src/native/types.ts
 import type React from "react";
 
 export type Flow = "landing" | "signin" | "register" | "onboarding" | "payment" | "app";
