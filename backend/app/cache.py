@@ -1,0 +1,86 @@
+import json
+import logging
+import os
+import time
+from dataclasses import dataclass
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+try:
+    import redis
+except Exception:  # pragma: no cover
+    redis = None
+
+
+@dataclass
+class CacheItem:
+    value: Any
+    expires_at: float
+
+
+_memory_cache: dict[str, CacheItem] = {}
+_redis_client = None
+
+
+def get_redis_client():
+    global _redis_client
+    if _redis_client is not None:
+        return _redis_client if _redis_client is not False else None
+
+    redis_url = os.getenv("REDIS_URL", "").strip()
+    if not redis_url or redis is None:
+        _redis_client = False
+        return None
+
+    try:
+        client = redis.from_url(redis_url, decode_responses=True, socket_timeout=2)
+        client.ping()
+        _redis_client = client
+    except Exception as e:
+        logger.warning(
+            f"[Cache] REDIS_URL set but connection failed ({e}). Falling back to memory cache."
+        )
+        _redis_client = False
+        return None
+
+    return _redis_client
+
+
+def cache_backend() -> str:
+    """Returns 'redis' if Redis is available and reachable, otherwise 'memory'."""
+    client = get_redis_client()
+    return "redis" if client is not None else "memory"
+
+
+def cache_get(key: str):
+    client = get_redis_client()
+    if client:
+        try:
+            raw_value = client.get(key)
+            if raw_value is None:
+                return None
+            return json.loads(raw_value)
+        except Exception as e:
+            logger.error(f"[Cache] Redis get error on key '{key}': {e}")
+            return None
+
+    item = _memory_cache.get(key)
+    if not item:
+        return None
+    if item.expires_at < time.time():
+        _memory_cache.pop(key, None)
+        return None
+    return item.value
+
+
+def cache_set(key: str, value: Any, ttl_seconds: int):
+    client = get_redis_client()
+    if client:
+        try:
+            client.setex(key, ttl_seconds, json.dumps(value))
+            return
+        except Exception as e:
+            logger.error(f"[Cache] Redis set error on key '{key}': {e}")
+
+    _memory_cache[key] = CacheItem(value=value, expires_at=time.time() + ttl_seconds)

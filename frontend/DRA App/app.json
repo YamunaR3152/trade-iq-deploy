@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "TradeIQ",
+    "slug": "tradeiq",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./src/imports/brand-icon.png",
+    "scheme": "dra",
+    "userInterfaceStyle": "dark",
+    "assetBundlePatterns": [
+      "src/imports/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./src/imports/brand-icon.png",
+        "backgroundColor": "#060810"
+      },
+      "package": "com.ishita_ghosh.tradeiq"
+    },
+    "splash": {
+      "image": "./src/imports/brand-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#060810"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-web-browser"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6305f649-e937-40f6-a3a0-dd6f4218cd33"
+      }
+    }
+  }
+}

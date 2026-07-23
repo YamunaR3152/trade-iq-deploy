@@ -1,0 +1,18 @@
+[2026-07-23 13:33:42,279] INFO in __init__ [C:\Projects\SalesTrading\backend\app\__init__.py:55]: [TradeIQ] Centralized logging initialized successfully.
+[2026-07-23 13:33:42,280] INFO in __init__ [C:\Projects\SalesTrading\backend\app\__init__.py:124]: [TradeIQ] Starting up — DB host: 127.0.0.1 | DB name: tradeiq | SSL: false | Env: development
+[2026-07-23 13:34:04,429] INFO in __init__ [C:\Projects\SalesTrading\backend\app\__init__.py:55]: [TradeIQ] Centralized logging initialized successfully.
+[2026-07-23 13:34:04,430] INFO in __init__ [C:\Projects\SalesTrading\backend\app\__init__.py:124]: [TradeIQ] Starting up — DB host: 127.0.0.1 | DB name: tradeiq | SSL: false | Env: development
+[2026-07-23 13:35:37,309] INFO in __init__ [C:\Projects\SalesTrading\backend\app\__init__.py:55]: [TradeIQ] Centralized logging initialized successfully.
+[2026-07-23 13:35:37,310] INFO in __init__ [C:\Projects\SalesTrading\backend\app\__init__.py:124]: [TradeIQ] Starting up — DB host: 127.0.0.1 | DB name: tradeiq | SSL: false | Env: development
+[2026-07-23 13:35:39,391] INFO in __init__ [C:\Projects\SalesTrading\backend\app\__init__.py:55]: [TradeIQ] Centralized logging initialized successfully.
+[2026-07-23 13:35:39,392] INFO in __init__ [C:\Projects\SalesTrading\backend\app\__init__.py:124]: [TradeIQ] Starting up — DB host: 127.0.0.1 | DB name: tradeiq | SSL: false | Env: development
+[2026-07-23 13:37:20,816] INFO in __init__ [C:\Projects\SalesTrading\backend\app\__init__.py:55]: [TradeIQ] Centralized logging initialized successfully.
+[2026-07-23 13:37:20,818] INFO in __init__ [C:\Projects\SalesTrading\backend\app\__init__.py:124]: [TradeIQ] Starting up — DB host: 127.0.0.1 | DB name: tradeiq | SSL: false | Env: development
+[2026-07-23 13:37:28,411] WARNING in cache [C:\Projects\SalesTrading\backend\app\cache.py:41]: [Cache] REDIS_URL set but connection failed (Error 10061 connecting to localhost:6379. No connection could be made because the target machine actively refused it.). Falling back to memory cache.
+[2026-07-23 13:37:28,684] INFO in __init__ [C:\Projects\SalesTrading\backend\app\__init__.py:55]: [TradeIQ] Centralized logging initialized successfully.
+[2026-07-23 13:37:28,684] INFO in __init__ [C:\Projects\SalesTrading\backend\app\__init__.py:124]: [TradeIQ] Starting up — DB host: 127.0.0.1 | DB name: tradeiq | SSL: false | Env: development
+[2026-07-23 13:38:28,553] INFO in __init__ [C:\Projects\SalesTrading\backend\app\__init__.py:55]: [TradeIQ] Centralized logging initialized successfully.
+[2026-07-23 13:38:28,554] INFO in __init__ [C:\Projects\SalesTrading\backend\app\__init__.py:124]: [TradeIQ] Starting up — DB host: 127.0.0.1 | DB name: tradeiq | SSL: false | Env: development
+[2026-07-23 13:38:35,617] WARNING in cache [C:\Projects\SalesTrading\backend\app\cache.py:41]: [Cache] REDIS_URL set but connection failed (Error 10061 connecting to localhost:6379. No connection could be made because the target machine actively refused it.). Falling back to memory cache.
+[2026-07-23 13:38:35,865] INFO in __init__ [C:\Projects\SalesTrading\backend\app\__init__.py:55]: [TradeIQ] Centralized logging initialized successfully.
+[2026-07-23 13:38:35,866] INFO in __init__ [C:\Projects\SalesTrading\backend\app\__init__.py:124]: [TradeIQ] Starting up — DB host: 127.0.0.1 | DB name: tradeiq | SSL: false | Env: development

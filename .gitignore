@@ -1,0 +1,21 @@
+# Environment / secrets — never commit real values
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Node / frontend
+node_modules/
+dist/
+.expo/
+
+# OS
+.DS_Store
